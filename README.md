@@ -2,7 +2,7 @@
 
 Nền tảng thương mại điện tử (backend NestJS + frontend React) — đồ án Module 06.
 
-> **Trạng thái:** Phase 2 — xác thực & phân quyền. Lộ trình: [docs/development-roadmap.md](docs/development-roadmap.md)
+> **Trạng thái:** Phase 3 — danh mục sản phẩm. Lộ trình: [docs/development-roadmap.md](docs/development-roadmap.md)
 
 | Thành phần | Công nghệ |
 |---|---|
@@ -31,7 +31,7 @@ cd backend
 npm install
 npx prisma generate
 npx prisma migrate dev        # tạo bảng trong database
-npx prisma db seed            # tạo 4 tài khoản mẫu (xem bảng bên dưới)
+npx prisma db seed            # 4 tài khoản mẫu + 10 danh mục, 21 thương hiệu, 500 sản phẩm
 npm run start:dev
 
 # 4. Frontend — http://localhost:5173 (terminal khác)
@@ -74,6 +74,18 @@ Mật khẩu của cả 4 tài khoản là giá trị `SEED_PASSWORD` trong `.en
 | `PATCH /api/users/:id/status` | ADMIN | Khoá / mở khoá tài khoản |
 
 Gửi access token qua header: `Authorization: Bearer <accessToken>`.
+
+### API sản phẩm
+
+| Method & đường dẫn | Quyền | Mô tả |
+|---|---|---|
+| `GET /api/products` | Công khai | Lọc `categoryId`, `brandId`, `minPrice`, `maxPrice`, `q`; `sort` = `newest` \| `price_asc` \| `price_desc` \| `name_asc`; `page`, `limit` (≤ 50) |
+| `GET /api/products/:id` | Công khai | Chi tiết sản phẩm (kèm danh mục, thương hiệu) |
+| `POST /api/products` | ADMIN | Tạo sản phẩm (kèm tồn kho ban đầu) |
+| `PATCH /api/products/:id` | ADMIN | Sửa tên, giá, mô tả… (không sửa tồn kho trực tiếp) |
+| `DELETE /api/products/:id` | ADMIN | Ngừng bán (giữ lại dữ liệu cho đơn hàng cũ) |
+| `GET /api/categories`, `GET /api/brands` | Công khai | Danh sách (kèm số sản phẩm đang bán) |
+| `POST/PATCH/DELETE /api/categories/:id`, `/api/brands/:id` | ADMIN | Quản lý; không xoá được khi còn sản phẩm (409) |
 
 Dừng hạ tầng: `docker compose down` (thêm `-v` để **xoá luôn dữ liệu**).
 
