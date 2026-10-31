@@ -50,3 +50,55 @@ model RefreshToken {
   @@index([userId])
   @@map("refresh_tokens")
 }
+
+/// Danh mục sản phẩm (một cấp — xem docs/database-design.md)
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Brand {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  products Product[]
+
+  @@map("brands")
+}
+
+/// Giá lưu bằng số nguyên VND. Ràng buộc CHECK (price >= 0, stock >= 0) nằm trong migration SQL.
+model Product {
+  id          String   @id @default(uuid()) @db.Uuid
+  sku         String   @unique
+  name        String
+  slug        String   @unique
+  description String   @default("")
+  price       Int
+  stock       Int      @default(0)
+  imageUrl    String?  @map("image_url")
+  isActive    Boolean  @default(true) @map("is_active")
+  /// Tăng mỗi lần giá/tồn kho đổi — dùng cho cache (Phase 7)
+  version     Int      @default(1)
+  categoryId  String   @map("category_id") @db.Uuid
+  brandId     String   @map("brand_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  brand    Brand    @relation(fields: [brandId], references: [id], onDelete: Restrict)
+
+  @@index([categoryId, price])
+  @@index([brandId, price])
+  @@index([isActive, createdAt(sort: Desc)])
+  @@map("products")
+}
