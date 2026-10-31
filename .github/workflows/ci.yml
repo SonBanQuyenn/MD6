@@ -1,0 +1,114 @@
+# CI: chạy cho mọi Pull Request và mỗi lần push vào develop/main.
+# Bất kỳ job nào fail → branch protection chặn merge (yêu cầu NFR-QUA-02).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+# Push liên tiếp lên cùng nhánh → huỷ lần chạy cũ, tiết kiệm thời gian.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  backend-quality:
+    name: backend-quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
+      - name: Unit tests + coverage
+        run: npm run test:cov
+      - name: Build
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: backend/coverage
+          if-no-files-found: ignore
+
+  backend-integration:
+    name: backend-integration
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    # PostgreSQL và Redis THẬT chạy cạnh job (service containers).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: shopfast
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: shopfast_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U shopfast -d shopfast_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      NODE_ENV: test
+      # Mật khẩu chỉ dùng cho database tạm thời trong CI, bị xoá khi job kết thúc.
+      DATABASE_URL: postgresql://shopfast:ci_only_password@localhost:5432/shopfast_test?schema=public
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+      - name: Integration tests
+        run: npm run test:e2e
+
+  frontend-quality:
+    name: frontend-quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
+      - name: Type check + build
+        run: npm run build
