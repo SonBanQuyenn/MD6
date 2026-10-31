@@ -69,8 +69,8 @@ TESTS / RESULTS / COMMIT / GIT COMMANDS / NEXT PHASE).
 | # | Rủi ro | Ảnh hưởng | Khả năng | Giảm thiểu |
 |---|---|---|---|---|
 | RK1 | Chưa có **domain / tài khoản AWS** | Mất 25% điểm R01, không có D01 | Trung bình | Hỏi sớm; domain giá rẻ (.id.vn / .xyz) hoặc subdomain miễn phí (DuckDNS) + Let's Encrypt; chuẩn bị script sẵn |
-| RK2 | Chưa biết **nhà cung cấp AI** / hết hạn mức key | F01 không demo được | Trung bình | Adapter + Mock (ghi nhãn); hỏi bạn loại key; giới hạn số vòng tool & token |
-| RK3 | Repo GitHub **private** trên gói Free không bật được branch protection | Không chứng minh "khoá merge" (NFR-QUA-02) | Cao nếu private | Dùng repo **public** (đảm bảo không có secret) hoặc GitHub Pro/Education miễn phí cho sinh viên |
+| RK2 | Hết hạn mức / lỗi key Claude | F01 không demo được | Trung bình | Adapter + Mock (ghi nhãn); giới hạn số vòng tool & token; kiểm tra key trước buổi bảo vệ |
+| RK3 | Repo **public** (`SonBanQuyenn/MD6`) → mọi commit đều công khai | Lộ secret là lộ ngay | Trung bình | Không bao giờ commit `.env`; gitleaks trong CI; branch protection bật được vì repo public |
 | RK4 | EC2 nhỏ (t2/t3.micro, 1 GB RAM) không đủ chạy PG + Redis + 2 API + worker + build | Sập khi deploy blue/green | Cao | Build image trên GitHub Actions (không build trên EC2); dùng **t3.small (2 GB)** + swap; giới hạn memory container |
 | RK5 | Chi phí AWS vượt Free Tier | Phát sinh tiền | Trung bình | Bật AWS Budgets cảnh báo; tắt instance khi không dùng; ECR lifecycle giữ 10 image |
 | RK6 | Đo hiệu năng không đạt ngưỡng (p95 < 50 ms qua Internet) | NFR-PERF | Trung bình | Đo **tại server** (loại trừ độ trễ mạng của người đo) và qua Internet, ghi cả 2, giải thích trung thực |

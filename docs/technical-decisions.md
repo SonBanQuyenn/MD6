@@ -18,7 +18,7 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
 - **Khi sự cố:** worker chết → API vẫn phục vụ, job nằm chờ trong Redis, worker lên lại xử lý tiếp.
 
 ## TD-02 — Prisma thay vì TypeORM
-- **Trạng thái:** Đề xuất
+- **Trạng thái:** Chấp nhận (2026-10-31)
 - **Lựa chọn:** Prisma 5.
 - **Lý do:**
   - `schema.prisma` là 1 file mô tả toàn bộ DB → dễ đọc, dễ vẽ ERD, dễ giải thích.
@@ -28,8 +28,7 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
     nguyên tử, `$queryRaw` khi cần SQL thuần.
 - **Đánh đổi:** không có decorator entity kiểu NestJS/TypeORM quen thuộc ở Module 5; `CHECK
   constraint` phải viết tay trong file migration SQL.
-- **Nếu Module 5 bạn đã quen TypeORM** và muốn giữ: báo trước Phase 2, ta đổi — kiến trúc không
-  phụ thuộc ORM vì Prisma chỉ nằm trong tầng Repository.
+- Prisma chỉ nằm trong tầng Repository → nếu sau này đổi ORM, tầng Service/Controller không phải sửa.
 
 ## TD-03 — Xác thực: JWT access ngắn hạn + refresh token xoay vòng
 - **Lựa chọn:** access token 15 phút (gửi qua header `Authorization`), refresh token 7 ngày gửi
@@ -77,6 +76,7 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
 - **Redis hỏng:** fail-open cho giới hạn chung; đăng nhập có bộ đếm in-memory dự phòng.
 
 ## TD-07 — AI: adapter interface, mặc định Claude, có Mock adapter
+- **Trạng thái:** Chấp nhận (2026-10-31) — nhà cung cấp AI là **Anthropic Claude**.
 - **Bối cảnh:** SRS nói "khoá truy cập dịch vụ AI được cấp trong phạm vi lớp học" nhưng không nói
   nhà cung cấp.
 - **Lựa chọn:** interface `LlmProvider { chat(messages, tools): LlmResponse }` với:

@@ -211,7 +211,7 @@ Trình bày **10 phút** + hỏi đáp **5 phút**.
 
 | # | Điểm chưa rõ | Giả định / đề xuất | Cần bạn xác nhận? |
 |---|---|---|---|
-| A1 | Nhà cung cấp AI (khoá "do lớp cấp") | Thiết kế **adapter**: `anthropic` (Claude) + `mock`; thêm adapter khác nếu khoá lớp cấp là nhà khác | **Có** — lớp cấp khoá của nhà nào? |
+| A1 | Nhà cung cấp AI (khoá "do lớp cấp") | **Đã chốt: Anthropic Claude.** Adapter `anthropic` + `mock` (cho test/CI) | Đã xác nhận |
 | A2 | "Đồng bộ tồn kho với đối tác" — đối tác nào? | Giả lập **API đối tác** (HTTP mock service nội bộ) để có lỗi/timeout thật mà retry xử lý | Không |
 | A3 | Thanh toán | Không có cổng thanh toán thật (SRS nói "định hướng tương lai"). Dùng COD + "thanh toán giả lập" để có trạng thái `UNPAID/PAID` cho job nhắc thanh toán | Không |
 | A4 | "Gửi mã xác thực" | OTP xác minh email / quên mật khẩu | Không |
