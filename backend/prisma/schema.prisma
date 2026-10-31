@@ -1,0 +1,33 @@
+// Schema Prisma của ShopFast.
+// Thiết kế đầy đủ: docs/database-design.md — các model được thêm dần theo từng phase.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// 4 vai trò theo SRS mục 2 (User Classes)
+enum Role {
+  CUSTOMER
+  SUPPORT_AGENT
+  WAREHOUSE_STAFF
+  ADMIN
+}
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  email         String   @unique
+  passwordHash  String   @map("password_hash")
+  fullName      String   @map("full_name")
+  role          Role     @default(CUSTOMER)
+  emailVerified Boolean  @default(false) @map("email_verified")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("users")
+}
