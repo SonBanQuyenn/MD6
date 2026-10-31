@@ -1,0 +1,8 @@
+# Luôn lưu file văn bản với xuống dòng LF trong repo và khi checkout,
+# để Prettier/ESLint cho kết quả giống nhau trên Windows, macOS, Linux và CI.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.docx binary

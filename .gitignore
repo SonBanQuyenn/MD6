@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Test & coverage
+coverage/
+
+# Environment / secrets — không bao giờ commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Local-only notes
+PRD.md
