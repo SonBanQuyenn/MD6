@@ -1,7 +1,6 @@
 import { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
-import { AppModule } from '../src/app.module';
+import { createTestApp } from './utils';
 
 /**
  * Integration test: chạy với PostgreSQL và Redis THẬT
@@ -11,20 +10,14 @@ describe('Health (integration)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    await app.init();
+    app = await createTestApp();
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  it('GET /api/health → 200, database và redis đều up', async () => {
+  it('GET /api/health → 200 không cần đăng nhập, database và redis đều up', async () => {
     const res = await request(app.getHttpServer()).get('/api/health');
 
     expect(res.status).toBe(200);

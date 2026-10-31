@@ -2,14 +2,10 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { configureApp } from './app.setup';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  // Mọi API nằm dưới /api → Nginx dễ phân biệt API với trang frontend.
-  app.setGlobalPrefix('api');
-  // Nhận SIGTERM (docker stop) → đóng kết nối DB/Redis gọn gàng.
-  app.enableShutdownHooks();
+  const app = configureApp(await NestFactory.create(AppModule));
 
   const port = app.get(ConfigService).get<number>('PORT', 3000);
   await app.listen(port);

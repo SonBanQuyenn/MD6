@@ -2,7 +2,7 @@
 
 Nền tảng thương mại điện tử (backend NestJS + frontend React) — đồ án Module 06.
 
-> **Trạng thái:** Phase 1 — khởi tạo dự án. Lộ trình: [docs/development-roadmap.md](docs/development-roadmap.md)
+> **Trạng thái:** Phase 2 — xác thực & phân quyền. Lộ trình: [docs/development-roadmap.md](docs/development-roadmap.md)
 
 | Thành phần | Công nghệ |
 |---|---|
@@ -31,6 +31,7 @@ cd backend
 npm install
 npx prisma generate
 npx prisma migrate dev        # tạo bảng trong database
+npx prisma db seed            # tạo 4 tài khoản mẫu (xem bảng bên dưới)
 npm run start:dev
 
 # 4. Frontend — http://localhost:5173 (terminal khác)
@@ -48,6 +49,32 @@ Mở http://localhost:5173 → thẻ **Trạng thái hệ thống** phải hiệ
 | http://localhost:3000/api/health/live | Tiến trình còn sống |
 | http://localhost:8025 | Mailpit — hộp thư xem email backend gửi |
 
+### Tài khoản mẫu (chỉ dev/demo)
+
+Mật khẩu của cả 4 tài khoản là giá trị `SEED_PASSWORD` trong `.env`.
+
+| Email | Vai trò |
+|---|---|
+| `admin@shopfast.local` | ADMIN |
+| `support@shopfast.local` | SUPPORT_AGENT |
+| `warehouse@shopfast.local` | WAREHOUSE_STAFF |
+| `customer@shopfast.local` | CUSTOMER |
+
+### API xác thực
+
+| Method & đường dẫn | Quyền | Mô tả |
+|---|---|---|
+| `POST /api/auth/register` | Công khai | Đăng ký tài khoản khách hàng (luôn là CUSTOMER) |
+| `POST /api/auth/login` | Công khai | Trả `accessToken` (15 phút) + đặt cookie `sf_refresh` (httpOnly, 7 ngày) |
+| `POST /api/auth/refresh` | Cookie `sf_refresh` | Đổi refresh token cũ lấy cặp token mới (xoay vòng) |
+| `POST /api/auth/logout` | Cookie `sf_refresh` | Thu hồi refresh token, xoá cookie |
+| `GET /api/users/me` | Đã đăng nhập | Thông tin tài khoản hiện tại |
+| `GET /api/users` | ADMIN | Danh sách người dùng, `?page&limit&role` |
+| `PATCH /api/users/:id/role` | ADMIN | Đổi vai trò |
+| `PATCH /api/users/:id/status` | ADMIN | Khoá / mở khoá tài khoản |
+
+Gửi access token qua header: `Authorization: Bearer <accessToken>`.
+
 Dừng hạ tầng: `docker compose down` (thêm `-v` để **xoá luôn dữ liệu**).
 
 ## Lệnh thường dùng
@@ -58,7 +85,7 @@ Dừng hạ tầng: `docker compose down` (thêm `-v` để **xoá luôn dữ li
 | `npm run format` / `npm run format:check` | Định dạng code / kiểm tra định dạng (Prettier) |
 | `npm test` | Unit test (backend) |
 | `npm run test:cov` | Unit test + báo cáo độ phủ → `backend/coverage/` |
-| `npm run test:e2e` | Integration test — **cần `docker compose up` trước** |
+| `npm run test:e2e` | Integration test — **cần `docker compose up` trước**. Chạy trên database riêng `shopfast_test` (tự tạo + migrate) và Redis DB 1, không đụng dữ liệu dev |
 | `npm run build` | Build production |
 
 ## Cấu trúc thư mục
