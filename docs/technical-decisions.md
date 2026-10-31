@@ -31,14 +31,32 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
 - Prisma chỉ nằm trong tầng Repository → nếu sau này đổi ORM, tầng Service/Controller không phải sửa.
 
 ## TD-03 — Xác thực: JWT access ngắn hạn + refresh token xoay vòng
+- **Trạng thái:** Chấp nhận — hiện thực ở Phase 2 (`backend/src/auth`, `backend/src/common/guards`)
 - **Lựa chọn:** access token 15 phút (gửi qua header `Authorization`), refresh token 7 ngày gửi
   qua **cookie httpOnly, Secure, SameSite=Strict**, lưu **hash SHA-256** trong DB, mỗi lần refresh
   cấp token mới và thu hồi token cũ (rotation). Phát hiện token cũ bị dùng lại → thu hồi cả chuỗi.
 - **Lý do:** access token ngắn hạn giảm thiệt hại khi lộ; refresh token trong cookie httpOnly
   không đọc được bằng JavaScript (chống XSS lấy cắp); lưu hash để lộ DB không lộ token.
-- **Mật khẩu:** `bcrypt` cost 12. Không bao giờ log mật khẩu / token.
-- **Khi sự cố:** nghi lộ token → admin vô hiệu hoá tài khoản (`is_active=false`) + thu hồi mọi
-  refresh token; access token còn sống tối đa 15 phút.
+- **Mật khẩu:** thư viện **`bcryptjs`** (bcrypt viết bằng JavaScript thuần), cost 12. Chọn
+  `bcryptjs` thay vì `bcrypt` (bản C++) để không phải biên dịch native module trong Docker Alpine/CI;
+  cùng thuật toán, hash tương thích nhau, chỉ chậm hơn một chút. Mật khẩu tối đa 72 ký tự vì bcrypt
+  chỉ dùng 72 byte đầu. Không bao giờ log mật khẩu / token.
+- **Không dùng Passport:** guard tự viết (~40 dòng) dùng `JwtService.verifyAsync` — ít phụ thuộc,
+  dễ giải thích. `JwtAuthGuard` áp **toàn cục**, endpoint công khai phải gắn `@Public()` → quên gắn
+  thì endpoint bị khoá (an toàn mặc định), không bị lộ.
+- **Chống dò email:** đăng nhập sai email hay sai mật khẩu đều trả cùng thông báo; khi email không
+  tồn tại vẫn chạy bcrypt với hash giả để thời gian phản hồi tương đương.
+- **Đăng ký** luôn tạo `CUSTOMER`; `ValidationPipe(forbidNonWhitelisted)` từ chối nếu gửi kèm `role`.
+  Tài khoản nhân viên do ADMIN cấp quyền qua `PATCH /api/users/:id/role`.
+- **Giới hạn đã biết:**
+  - Access token không kiểm tra DB mỗi request (để nhanh) → đổi vai trò / khoá tài khoản có hiệu
+    lực đầy đủ sau tối đa 15 phút (refresh token bị thu hồi ngay).
+  - Hai tab cùng refresh một lúc bằng cùng cookie: một tab thắng, tab kia nhận 401 (do điều kiện
+    `revokedAt IS NULL` trong transaction). Frontend (Phase 9) sẽ gom các lần refresh đồng thời
+    thành một request để tránh trường hợp này.
+- **Khi sự cố:** nghi lộ token → admin khoá tài khoản (`PATCH /api/users/:id/status`) → mọi refresh
+  token bị thu hồi; access token còn sống tối đa 15 phút. Lộ `JWT_ACCESS_SECRET` → đổi secret và
+  deploy lại: mọi access token cũ mất hiệu lực ngay.
 
 ## TD-04 — Chống bán vượt bằng UPDATE có điều kiện trong transaction
 - Xem chi tiết [database-design.md §6](database-design.md#6-chống-bán-vượt--vì-sao-câu-lệnh-này-an-toàn).
