@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { CartRepository } from '../cart/cart.repository';
+import { OutboxDispatcher } from '../jobs/outbox.dispatcher';
 import { toCartView } from '../cart/cart.service';
 import { Paginated } from '../common/dto/pagination-query.dto';
 import { AuthUser } from '../common/types/auth-user';
@@ -50,6 +51,7 @@ export class OrdersService {
     private readonly orders: OrdersRepository,
     private readonly cart: CartRepository,
     private readonly promotions: PromotionsService,
+    private readonly outbox: OutboxDispatcher,
   ) {}
 
   /**
@@ -119,6 +121,9 @@ export class OrdersService {
           ? { id: promotion.id, perUserLimit: promotion.perUserLimit }
           : undefined,
       });
+      // Đẩy job lên hàng đợi NGAY (email, hoá đơn, đồng bộ kho…) — không chờ chúng chạy xong.
+      // Hàng đợi lỗi cũng không sao: dispatcher không ném lỗi, sự kiện vẫn nằm trong outbox.
+      await this.outbox.dispatchForOrder(order.id);
       return { order: toOrderView(order), replayed: false };
     } catch (error) {
       if (error instanceof OrderItemUnavailableError) {
@@ -270,6 +275,9 @@ export class OrdersService {
         restock: to === OrderStatus.CANCELLED,
         extra,
       });
+      if (to === OrderStatus.CANCELLED) {
+        await this.outbox.dispatchForOrder(order.id);
+      }
       return toOrderView(updated);
     } catch (error) {
       if (error instanceof OrderStatusConflictError) {
@@ -279,6 +287,18 @@ export class OrdersService {
       }
       throw error;
     }
+  }
+
+  /** Hoá đơn HTML do job nền tạo. Chưa tạo xong → 404 kèm lời nhắn thử lại sau. */
+  async getInvoiceHtml(user: AuthUser, orderId: string): Promise<string> {
+    await this.loadAccessible(user, orderId);
+    const invoice = await this.orders.findInvoice(orderId);
+    if (!invoice) {
+      throw new NotFoundException(
+        'Hoá đơn đang được tạo, vui lòng thử lại sau ít phút',
+      );
+    }
+    return invoice.html;
   }
 
   private async loadAccessible(

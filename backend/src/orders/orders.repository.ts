@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   InventoryReason,
   OrderStatus,
+  OutboxEventType,
   PaymentMethod,
   Prisma,
 } from '@prisma/client';
@@ -140,6 +141,17 @@ export class OrdersRepository {
             productId: { in: lines.map((l) => l.productId) },
           },
         });
+
+        // Transactional outbox: ghi sự kiện CÙNG transaction với đơn hàng.
+        // Đơn commit thành công ⇔ sự kiện chắc chắn tồn tại → email/hoá đơn không bao giờ bị mất,
+        // kể cả khi Redis chết ngay lúc này (job quét outbox sẽ đẩy lại).
+        await tx.jobOutbox.create({
+          data: {
+            type: OutboxEventType.ORDER_PLACED,
+            orderId: order.id,
+            payload: { paymentMethod: input.paymentMethod },
+          },
+        });
         return order;
       },
       { timeout: 10_000 },
@@ -166,6 +178,16 @@ export class OrdersRepository {
           note: input.note,
         },
       });
+
+      if (input.to === OrderStatus.CANCELLED) {
+        await tx.jobOutbox.create({
+          data: {
+            type: OutboxEventType.ORDER_CANCELLED,
+            orderId: input.orderId,
+            payload: {},
+          },
+        });
+      }
 
       if (input.restock) {
         const items = await tx.orderItem.findMany({
@@ -198,6 +220,10 @@ export class OrdersRepository {
         include: orderDetailInclude,
       });
     });
+  }
+
+  findInvoice(orderId: string) {
+    return this.prisma.invoice.findUnique({ where: { orderId } });
   }
 
   findById(id: string): Promise<OrderDetail | null> {
