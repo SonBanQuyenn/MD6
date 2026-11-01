@@ -1,10 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
+import { CartModule } from './cart/cart.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { envValidationSchema } from './config/env.validation';
 import { HealthModule } from './health/health.module';
+import { InventoryModule } from './inventory/inventory.module';
+import { OrdersModule } from './orders/orders.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { PromotionsModule } from './promotions/promotions.module';
 import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './users/users.module';
 
@@ -23,6 +27,10 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     UsersModule,
     CatalogModule,
+    InventoryModule,
+    CartModule,
+    PromotionsModule,
+    OrdersModule,
   ],
 })
 export class AppModule {}
