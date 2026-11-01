@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import { CartItemWithProduct, CartRepository } from '../cart/cart.repository';
 import { AuthUser } from '../common/types/auth-user';
+import { OutboxDispatcher } from '../jobs/outbox.dispatcher';
 import { PromotionsService } from '../promotions/promotions.service';
 import {
   OrderItemUnavailableError,
@@ -103,6 +104,7 @@ describe('OrdersService', () => {
   >;
   let cart: jest.Mocked<Pick<CartRepository, 'findItems'>>;
   let promotions: jest.Mocked<Pick<PromotionsService, 'getUsable'>>;
+  let outbox: jest.Mocked<Pick<OutboxDispatcher, 'dispatchForOrder'>>;
   let service: OrdersService;
 
   beforeEach(() => {
@@ -115,10 +117,16 @@ describe('OrdersService', () => {
     };
     cart = { findItems: jest.fn().mockResolvedValue([cartItem()]) };
     promotions = { getUsable: jest.fn() };
+    outbox = {
+      dispatchForOrder: jest
+        .fn()
+        .mockResolvedValue({ dispatched: 1, failed: 0 }),
+    };
     service = new OrdersService(
       orders as unknown as OrdersRepository,
       cart as unknown as CartRepository,
       promotions as unknown as PromotionsService,
+      outbox as unknown as OutboxDispatcher,
     );
   });
 
@@ -154,6 +162,11 @@ describe('OrdersService', () => {
       );
     });
 
+    it('đặt đơn thành công → đẩy sự kiện outbox lên hàng đợi (không chờ job chạy)', async () => {
+      await service.placeOrder('u1', 'key-12345678', dto);
+      expect(outbox.dispatchForOrder).toHaveBeenCalledWith('o1');
+    });
+
     it('cùng Idempotency-Key đã có đơn → trả đơn cũ, KHÔNG tạo đơn mới', async () => {
       orders.findByIdempotencyKey.mockResolvedValue(order());
 
@@ -161,6 +174,7 @@ describe('OrdersService', () => {
 
       expect(result.replayed).toBe(true);
       expect(orders.placeOrder).not.toHaveBeenCalled();
+      expect(outbox.dispatchForOrder).not.toHaveBeenCalled();
     });
 
     it('2 request trùng key chạy song song (lỗi UNIQUE) → trả đơn của request thắng', async () => {
@@ -332,6 +346,14 @@ describe('OrdersService', () => {
       await expect(
         service.changeStatusByStaff(warehouse, 'o1', OrderStatus.CONFIRMED),
       ).rejects.toThrow('vừa được người khác cập nhật');
+    });
+
+    it('huỷ đơn → đẩy sự kiện đồng bộ kho; đổi trạng thái khác → không', async () => {
+      await service.changeStatusByStaff(warehouse, 'o1', OrderStatus.CONFIRMED);
+      expect(outbox.dispatchForOrder).not.toHaveBeenCalled();
+
+      await service.changeStatusByStaff(warehouse, 'o1', OrderStatus.CANCELLED);
+      expect(outbox.dispatchForOrder).toHaveBeenCalledWith('o1');
     });
 
     it('khách chỉ huỷ được đơn đang chờ xác nhận', async () => {
