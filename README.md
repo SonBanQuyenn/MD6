@@ -2,7 +2,7 @@
 
 Nền tảng thương mại điện tử (backend NestJS + frontend React) — đồ án Module 06.
 
-> **Trạng thái:** Phase 3 — danh mục sản phẩm. Lộ trình: [docs/development-roadmap.md](docs/development-roadmap.md)
+> **Trạng thái:** Phase 8 — tác vụ nền (BullMQ). Lộ trình: [docs/development-roadmap.md](docs/development-roadmap.md)
 
 | Thành phần | Công nghệ |
 |---|---|
@@ -34,7 +34,11 @@ npx prisma migrate dev        # tạo bảng trong database
 npx prisma db seed            # 4 tài khoản mẫu + 10 danh mục, 21 thương hiệu, 500 sản phẩm
 npm run start:dev
 
-# 4. Frontend — http://localhost:5173 (terminal khác)
+# 4. Worker xử lý job nền — email, hoá đơn, đồng bộ kho, báo cáo (terminal khác)
+cd backend
+npm run start:worker:dev
+
+# 5. Frontend — http://localhost:5173 (terminal khác)
 cd frontend
 npm install
 npm run dev
@@ -47,7 +51,7 @@ Mở http://localhost:5173 → thẻ **Trạng thái hệ thống** phải hiệ
 | http://localhost:5173 | Frontend |
 | http://localhost:3000/api/health | Health check (DB + Redis) — `200` hoặc `503` |
 | http://localhost:3000/api/health/live | Tiến trình còn sống |
-| http://localhost:8025 | Mailpit — hộp thư xem email backend gửi |
+| http://localhost:8025 | Mailpit — hộp thư xem email backend gửi (xác nhận đơn, nhắc thanh toán, báo cáo) |
 
 ### Tài khoản mẫu (chỉ dev/demo)
 
@@ -87,6 +91,44 @@ Gửi access token qua header: `Authorization: Bearer <accessToken>`.
 | `GET /api/categories`, `GET /api/brands` | Công khai | Danh sách (kèm số sản phẩm đang bán) |
 | `POST/PATCH/DELETE /api/categories/:id`, `/api/brands/:id` | ADMIN | Quản lý; không xoá được khi còn sản phẩm (409) |
 
+### API giỏ hàng, đơn hàng, tồn kho
+
+| Method & đường dẫn | Quyền | Mô tả |
+|---|---|---|
+| `GET /api/cart` | CUSTOMER | Giỏ hàng theo giá hiện tại, cảnh báo hết hàng / ngừng bán |
+| `POST /api/cart/items` · `PATCH/DELETE /api/cart/items/:productId` · `DELETE /api/cart` | CUSTOMER | Thêm (cộng dồn), sửa số lượng, xoá |
+| `POST /api/orders` | CUSTOMER | Đặt đơn từ giỏ. **Bắt buộc header `Idempotency-Key`** (8–100 ký tự); gửi lại cùng key → trả đơn cũ (200, header `Idempotent-Replayed: true`) |
+| `POST /api/orders/promotional` | CUSTOMER | Như trên + `promotionCode` |
+| `GET /api/orders/me` | CUSTOMER | Lịch sử đơn, `?status&page&limit` |
+| `GET /api/orders/:id` | Chủ đơn hoặc nhân viên | Chi tiết + dòng thời gian trạng thái |
+| `POST /api/orders/:id/cancel` | CUSTOMER | Huỷ đơn đang chờ xác nhận (hoàn kho) |
+| `POST /api/orders/:id/pay` | CUSTOMER | Thanh toán **giả lập** cho `MOCK_ONLINE` |
+| `GET /api/orders` | SUPPORT_AGENT, WAREHOUSE_STAFF, ADMIN | Mọi đơn hàng |
+| `PATCH /api/orders/:id/status` | WAREHOUSE_STAFF, ADMIN | `PENDING → CONFIRMED → PACKING → SHIPPING → DELIVERED`, huỷ khi `PENDING/CONFIRMED` |
+| `POST /api/inventory/adjustments` | WAREHOUSE_STAFF, ADMIN | Nhập (`delta > 0`) / xuất (`delta < 0`) kho |
+| `GET /api/inventory/low-stock` · `GET /api/inventory/products/:id/movements` | WAREHOUSE_STAFF, ADMIN | Sắp hết hàng · lịch sử biến động |
+| `GET/POST /api/promotions` | ADMIN | Quản lý mã khuyến mãi |
+
+### Tác vụ nền (BullMQ) & API quản trị hàng đợi
+
+Đặt đơn **không chờ** gửi email: API ghi sự kiện vào `job_outbox` trong cùng transaction rồi đẩy job
+lên Redis; tiến trình **worker** xử lý. Demo nhanh: đặt `PAYMENT_REMINDER_DELAY_MS=60000` trong `.env`
+để nhắc thanh toán sau 1 phút; đặt `PARTNER_SYNC_FAILURE_RATE=1` để thấy retry + dead letter.
+
+| Hàng đợi | Job | Thử lại |
+|---|---|---|
+| `email` | email xác nhận đơn, nhắc thanh toán (hẹn 30 phút) | 5 lần, 2s → 16s |
+| `invoice` | xuất hoá đơn HTML | 3 lần, từ 1s |
+| `inventory-sync` | báo tồn kho cho đối tác (**giả lập**) | 8 lần, từ 5s |
+| `scheduled` | báo cáo doanh thu 23:00 (giờ VN), quét outbox mỗi 60s | 3 lần |
+
+| Method & đường dẫn | Quyền | Mô tả |
+|---|---|---|
+| `GET /api/orders/:id/invoice` | Chủ đơn hoặc nhân viên | Hoá đơn HTML |
+| `GET /api/admin/queues` | ADMIN | Số job chờ / đang chạy / xong / lỗi / hẹn giờ + outbox chưa đẩy |
+| `GET /api/admin/jobs/failed` · `POST /api/admin/jobs/failed/:id/retry` | ADMIN | Dead letter: xem lý do, chạy lại |
+| `GET /api/admin/reports/daily-revenue` · `POST …` `{ "date": "YYYY-MM-DD" }` | ADMIN | Xem / chạy ngay báo cáo doanh thu |
+
 Dừng hạ tầng: `docker compose down` (thêm `-v` để **xoá luôn dữ liệu**).
 
 ## Lệnh thường dùng
@@ -99,6 +141,7 @@ Dừng hạ tầng: `docker compose down` (thêm `-v` để **xoá luôn dữ li
 | `npm run test:cov` | Unit test + báo cáo độ phủ → `backend/coverage/` |
 | `npm run test:e2e` | Integration test — **cần `docker compose up` trước**. Chạy trên database riêng `shopfast_test` (tự tạo + migrate) và Redis DB 1, không đụng dữ liệu dev |
 | `npm run build` | Build production |
+| `npm run start:worker:dev` / `npm run start:worker` | Chạy worker (dev / sau khi build) |
 
 ## Cấu trúc thư mục
 

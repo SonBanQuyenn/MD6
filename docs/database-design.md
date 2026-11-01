@@ -18,7 +18,7 @@
 ```mermaid
 erDiagram
   users ||--o{ refresh_tokens : has
-  users ||--o| carts : owns
+  users ||--o{ cart_items : owns
   users ||--o{ orders : places
   users ||--o{ tickets : opens
   users ||--o{ verification_codes : receives
@@ -26,7 +26,6 @@ erDiagram
   categories ||--o{ products : contains
   brands ||--o{ products : makes
 
-  carts ||--o{ cart_items : contains
   products ||--o{ cart_items : "in"
 
   orders ||--|{ order_items : contains
@@ -100,20 +99,17 @@ erDiagram
     uuid id PK
     uuid product_id FK
     int delta
+    int stock_after
     enum reason "ORDER|CANCEL|MANUAL_ADJUST|PARTNER_SYNC"
     uuid order_id FK
     uuid actor_id FK
     timestamptz created_at
   }
-  carts {
-    uuid id PK
-    uuid user_id FK,UK
-  }
   cart_items {
     uuid id PK
-    uuid cart_id FK
+    uuid user_id FK
     uuid product_id FK
-    int quantity
+    int quantity "UNIQUE(user_id, product_id)"
   }
   promotions {
     uuid id PK
@@ -292,6 +288,12 @@ giữ truy vấn lọc đơn giản. Nếu cần nhiều cấp, thêm cột `par
 
 Tìm theo tên (`?q=`) dùng `ILIKE` — chưa có index, chấp nhận với vài nghìn sản phẩm. Nâng cấp khi
 dữ liệu lớn: extension `pg_trgm` + GIN index.
+
+Giỏ hàng **không có bảng `carts` riêng**: mỗi khách chỉ có 1 giỏ, nên `cart_items` gắn thẳng
+vào `user_id` với `UNIQUE(user_id, product_id)` — bớt 1 bảng, bớt 1 phép JOIN.
+
+Ràng buộc CHECK bổ sung ở Phase 3b: `cart_items.quantity > 0`, `order_items.quantity > 0`,
+`orders.total = subtotal - discount` và `discount <= subtotal`, `promotions.used_count <= max_uses`.
 
 Phân trang: dùng `page/limit` (offset) cho đơn giản và dễ hiển thị số trang; giới hạn
 `limit ≤ 50` để tránh truy vấn quá nặng. (Keyset pagination là hướng nâng cấp nếu dữ liệu lớn.)

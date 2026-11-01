@@ -63,6 +63,23 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
 - **Thay thế đã cân nhắc:** khoá phân tán Redis (phức tạp, Redis hỏng là hỏng bán hàng);
   `SELECT FOR UPDATE` (đúng nhưng dài dòng hơn); kiểm tra ở frontend (vô nghĩa về an toàn).
 - **Lớp bảo vệ thứ 2:** `CHECK (stock >= 0)`.
+- **Trạng thái:** Chấp nhận — hiện thực ở Phase 3b (`backend/src/orders/orders.repository.ts`).
+- **Chi tiết đã hiện thực:**
+  - Câu UPDATE còn kiểm tra `price = giá khách đã thấy` và `is_active = true` → admin đổi giá /
+    ngừng bán đúng lúc khách bấm đặt thì đơn bị từ chối (409 "Giá vừa thay đổi"), không bán sai giá.
+  - Trừ kho theo **thứ tự product id** cho mọi đơn → 2 đơn cùng chứa A và B không khoá chéo nhau
+    (deadlock).
+  - **Chống đặt trùng:** header `Idempotency-Key` + `UNIQUE(user_id, idempotency_key)`. Gửi lại cùng
+    key → trả đơn cũ. 2 request cùng key chạy song song → request thua vấp UNIQUE, rollback, và nhận
+    đơn của request thắng.
+  - **Mã khuyến mãi:** trừ lượt bằng `UPDATE … WHERE used_count < max_uses` (so sánh 2 cột qua
+    Prisma field reference) + `CHECK (used_count <= max_uses)`. Giới hạn lượt/khách dùng
+    `pg_advisory_xact_lock(user, mã)` để 2 đơn đồng thời của cùng khách chạy lần lượt.
+  - **Đổi trạng thái:** khoá lạc quan `UPDATE … WHERE status = trạng_thái_cũ`; 0 dòng → 409.
+    Huỷ đơn → hoàn kho trong cùng transaction, ghi `inventory_movements`.
+- **Bằng chứng:** `test/orders.e2e-spec.ts` — 8 khách mua đồng thời sản phẩm còn 3 → đúng 3 đơn
+  thành công, tồn kho về 0 (đã chạy lặp 4 lần, đều ổn định).
+- **Giới hạn:** thanh toán online là **giả lập** (`POST /orders/:id/pay`), chưa có cổng thanh toán thật.
 
 ## TD-05 — Realtime: Socket.IO + phòng riêng mỗi đơn + Redis adapter
 - **Lý do:** Socket.IO có sẵn **tự kết nối lại**, **rooms**, fallback long-polling khi mạng chặn
@@ -131,16 +148,43 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
 - **Phân quyền trang:** `ProtectedRoute` kiểm tra role; *backend vẫn là nơi kiểm tra quyền thật*.
 
 ## TD-10 — Job nền: BullMQ + idempotency nhiều lớp + outbox
-- **Idempotency:** (1) `jobId` xác định từ nghiệp vụ (`order-confirmation:{orderId}`) → BullMQ
-  bỏ qua job trùng; (2) ràng buộc `UNIQUE` trong DB là chốt chặn cuối khi job thật sự chạy lại.
-- **Outbox:** trong transaction đặt đơn, ghi `job_outbox`. Sau commit, đẩy job lên BullMQ và đánh
-  dấu `dispatched_at`. Một job định kỳ quét bản ghi chưa dispatch (do Redis hỏng đúng lúc đó) và
-  đẩy lại. → Không mất email dù Redis chập chờn.
-- **Retry:** email 5 lần, backoff exponential bắt đầu 2 s; đồng bộ kho đối tác 8 lần bắt đầu 5 s.
-- **Dead letter:** lần thử cuối thất bại → bảng `failed_jobs` + queue `dead-letter`; admin xem và
-  "chạy lại" từ dashboard.
-- **Lịch:** nhắc thanh toán = delayed job 30 phút (chạy thì kiểm tra lại `payment_status`);
-  báo cáo doanh thu = repeatable job `0 23 * * *` giờ `Asia/Ho_Chi_Minh`.
+- **Trạng thái:** Chấp nhận — hiện thực ở Phase 8 (`backend/src/jobs`, `backend/src/mail`, `src/worker.ts`).
+- **Hai tiến trình từ cùng 1 image:** API chỉ THÊM job (`JobsModule.forRoot('producer')`), worker
+  xử lý job (`npm run start:worker`). Worker chết → API vẫn nhận đơn, job nằm chờ trong Redis.
+- **Kết nối Redis của API dùng `enableOfflineQueue: false`** + timeout 2 s khi đẩy job → Redis chết thì
+  báo lỗi ngay, không treo request đặt hàng. Worker dùng `maxRetriesPerRequest: null` (khuyến nghị BullMQ).
+- **Idempotency nhiều lớp:**
+  1. `jobId` xác định từ nghiệp vụ (`order-confirmation-<orderId>`) → BullMQ bỏ qua job trùng
+     trong thời gian còn giữ job (7 ngày). BullMQ cấm dấu `:` trong jobId nên dùng `-`.
+  2. Chốt chặn cuối ở DB: `email_logs.dedupe_key`, `invoices.order_id`, `inventory_sync_logs.dedupe_key`
+     đều UNIQUE; báo cáo doanh thu UPSERT theo ngày.
+  3. Email: worker phải **giành quyền gửi** (tạo bản ghi, hoặc UPDATE có điều kiện từ `FAILED` /
+     `SENDING` treo quá 2 phút). Không giành được → ném lỗi, BullMQ thử lại sau và lúc đó thấy `SENT`.
+     (Bản đầu tiên thiếu bước này — 2 worker đồng thời có thể cùng gửi; đã phát hiện khi review và
+     thêm test 5 worker song song.)
+  4. Đồng bộ kho gửi **mức tồn hiện tại** (không gửi "trừ 2") + Idempotency-Key cho đối tác
+     → gửi lại hay đến sai thứ tự vẫn đúng số liệu.
+- **Transactional outbox:** sự kiện `ORDER_PLACED` / `ORDER_CANCELLED` ghi vào `job_outbox` **cùng
+  transaction** với đơn hàng. Sau commit đẩy lên BullMQ ngay; lỗi → giữ lại, job `outbox-sweep`
+  (mỗi 60 s, `upsertJobScheduler`) đẩy lại. Đã đo: Redis tắt lúc đặt → đơn 201 trong 33 ms; bật lại
+  → sự kiện được đẩy sau ~64 s, email + hoá đơn đều hoàn tất.
+- **Retry (exponential backoff):** email 5 lần (2s, 4s, 8s, 16s); hoá đơn 3 lần (1s); đồng bộ kho
+  8 lần (5s → ~10 phút); job định kỳ 3 lần (30s). Lỗi vô vọng (đơn không tồn tại) ném
+  `UnrecoverableError` → dừng ngay, không retry.
+- **Dead letter:** lần thử CUỐI thất bại → bảng `failed_jobs` (queue, payload, lý do, stacktrace,
+  số lần thử). Admin xem `GET /api/admin/jobs/failed` và chạy lại `POST …/:id/retry` (an toàn vì
+  mọi tác vụ idempotent). Không tạo queue "dead-letter" riêng — bảng DB dễ truy vấn và bền hơn.
+- **Lịch:** nhắc thanh toán = delayed job (mặc định 30 phút, chỉ đơn `MOCK_ONLINE`; lúc chạy kiểm tra
+  lại trạng thái, đã trả / đã huỷ → bỏ qua). Báo cáo doanh thu = `upsertJobScheduler` cron
+  `0 23 * * *` tz `Asia/Ho_Chi_Minh`; doanh thu lưu `BIGINT` (1 ngày có thể vượt 2,1 tỷ đồng).
+- **Email:** `nodemailer` qua SMTP; dev/demo dùng **Mailpit** (thư không ra Internet). Mặc định
+  `SMTP_HOST=127.0.0.1` (không dùng `localhost` vì Node có thể phân giải ra IPv6 `::1`, còn compose
+  chỉ mở IPv4 — lỗi này đã gặp thật khi thử nghiệm).
+- **Đối tác kho là GIẢ LẬP** (`PartnerInventoryClient`), có thể cấu hình tỉ lệ lỗi
+  `PARTNER_SYNC_FAILURE_RATE` để demo retry + dead letter.
+- **Giới hạn còn lại:** nếu worker chết đúng sau khi SMTP nhận thư nhưng trước khi ghi `SENT`, lần
+  retry (sau 2 phút) có thể gửi lại — giới hạn chung của gửi qua SMTP (at-least-once).
+  Giảm thiểu: Message-ID cố định để hộp thư gộp thư trùng.
 
 ## TD-11 — Triển khai: EC2 + Docker Compose + blue/green + SSM, image trên ECR
 - **Vì sao không ECS/EKS?** SRS yêu cầu EC2; Compose dễ hiểu, dễ debug trong buổi bảo vệ.
