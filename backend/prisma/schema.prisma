@@ -197,6 +197,8 @@ model Order {
   items              OrderItem[]
   statusHistory      OrderStatusHistory[]
   inventoryMovements InventoryMovement[]
+  invoice            Invoice?
+  emailLogs          EmailLog[]
 
   @@unique([userId, idempotencyKey])
   @@index([userId, createdAt(sort: Desc)])
@@ -262,4 +264,113 @@ model InventoryMovement {
 
   @@index([productId, createdAt(sort: Desc)])
   @@map("inventory_movements")
+}
+
+// ======================= Tác vụ nền (F05) =======================
+
+enum OutboxEventType {
+  ORDER_PLACED
+  ORDER_CANCELLED
+}
+
+/// Transactional outbox: sự kiện được ghi CÙNG transaction với đơn hàng.
+/// Redis/hàng đợi hỏng đúng lúc đặt đơn → sự kiện vẫn nằm đây, job quét định kỳ sẽ đẩy lại.
+model JobOutbox {
+  id           String          @id @default(uuid()) @db.Uuid
+  type         OutboxEventType
+  orderId      String          @map("order_id") @db.Uuid
+  payload      Json
+  dispatchedAt DateTime?       @map("dispatched_at") @db.Timestamptz(3)
+  attempts     Int             @default(0)
+  lastError    String?         @map("last_error")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([dispatchedAt, createdAt])
+  @@map("job_outbox")
+}
+
+enum EmailStatus {
+  SENDING
+  SENT
+  FAILED
+}
+
+/// Nhật ký email. `dedupeKey` UNIQUE = chốt chặn "mỗi đơn chỉ 1 email xác nhận" dù job chạy lại.
+model EmailLog {
+  id                String      @id @default(uuid()) @db.Uuid
+  /// ví dụ: order-confirmation-<orderId>, payment-reminder-<orderId>, daily-report-2026-11-01-<email>
+  dedupeKey         String      @unique @map("dedupe_key")
+  type              String
+  orderId           String?     @map("order_id") @db.Uuid
+  toEmail           String      @map("to_email")
+  subject           String
+  status            EmailStatus @default(SENDING)
+  attempts          Int         @default(0)
+  providerMessageId String?     @map("provider_message_id")
+  lastError         String?     @map("last_error")
+  sentAt            DateTime?   @map("sent_at") @db.Timestamptz(3)
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@map("email_logs")
+}
+
+/// Hoá đơn: mỗi đơn đúng 1 hoá đơn (orderId UNIQUE). Nội dung HTML lưu trong DB.
+model Invoice {
+  id        String   @id @default(uuid()) @db.Uuid
+  orderId   String   @unique @map("order_id") @db.Uuid
+  number    String   @unique
+  total     Int
+  html      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+/// Mỗi lần đồng bộ tồn kho với đối tác thành công được ghi lại theo khoá chống trùng.
+model InventorySyncLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  dedupeKey  String   @unique @map("dedupe_key")
+  orderId    String?  @map("order_id") @db.Uuid
+  payload    Json
+  partnerRef String   @map("partner_ref")
+  syncedAt   DateTime @default(now()) @map("synced_at") @db.Timestamptz(3)
+
+  @@map("inventory_sync_logs")
+}
+
+/// "Dead letter": job đã hết lượt thử, lưu kèm lý do để admin xem và chạy lại.
+model FailedJob {
+  id           String    @id @default(uuid()) @db.Uuid
+  queue        String
+  jobId        String    @map("job_id")
+  jobName      String    @map("job_name")
+  payload      Json
+  failedReason String    @map("failed_reason")
+  stacktrace   String?
+  attemptsMade Int       @map("attempts_made")
+  failedAt     DateTime  @default(now()) @map("failed_at") @db.Timestamptz(3)
+  retriedAt    DateTime? @map("retried_at") @db.Timestamptz(3)
+
+  @@index([queue, failedAt(sort: Desc)])
+  @@map("failed_jobs")
+}
+
+/// Báo cáo doanh thu theo ngày (giờ Việt Nam). reportDate UNIQUE → chạy lại chỉ cập nhật, không nhân đôi.
+model DailyRevenueReport {
+  id             String   @id @default(uuid()) @db.Uuid
+  reportDate     DateTime @unique @map("report_date") @db.Date
+  orderCount     Int      @map("order_count")
+  cancelledCount Int      @map("cancelled_count")
+  /// BigInt: doanh thu 1 ngày có thể vượt giới hạn INTEGER (~2,1 tỷ đồng)
+  revenue        BigInt
+  breakdown      Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("daily_revenue_reports")
 }
