@@ -89,6 +89,18 @@ export class OrdersController {
     return this.ordersService.getForUser(user, id);
   }
 
+  /** GET /api/orders/:id/invoice — hoá đơn HTML (chủ đơn hoặc nhân viên). */
+  @Get(':id/invoice')
+  async invoice(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const html = await this.ordersService.getInvoiceHtml(user, id);
+    res.type('html'); // chỉ đặt khi thành công — lỗi vẫn trả JSON như mọi API khác
+    return html;
+  }
+
   /** PATCH /api/orders/:id/status — kho cập nhật trạng thái. */
   @Patch(':id/status')
   @Roles(Role.WAREHOUSE_STAFF, Role.ADMIN)
