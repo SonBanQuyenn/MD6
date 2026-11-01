@@ -231,6 +231,8 @@ describe('Cart, Orders & Inventory (integration)', () => {
         placeOrder(customerA, key),
       ]);
 
+      // MỌI request đều thành công (1 cái tạo đơn 201, các cái còn lại nhận lại đơn đó 200)
+      expect(results.map((r) => r.status).sort()).toEqual([200, 200, 201]);
       const ids = new Set(results.map((r) => r.body.id));
       expect(ids.size).toBe(1);
       expect(await prisma.order.count()).toBe(1);

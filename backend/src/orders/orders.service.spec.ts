@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import { CartItemWithProduct, CartRepository } from '../cart/cart.repository';
 import { AuthUser } from '../common/types/auth-user';
+import { CatalogCacheInvalidator } from '../cache/catalog-cache';
 import { OutboxDispatcher } from '../jobs/outbox.dispatcher';
 import { PromotionsService } from '../promotions/promotions.service';
 import {
@@ -127,6 +128,7 @@ describe('OrdersService', () => {
       cart as unknown as CartRepository,
       promotions as unknown as PromotionsService,
       outbox as unknown as OutboxDispatcher,
+      { invalidateProducts: jest.fn() } as unknown as CatalogCacheInvalidator,
     );
   });
 
@@ -190,6 +192,40 @@ describe('OrdersService', () => {
 
       const result = await service.placeOrder('u1', 'key-12345678', dto);
 
+      expect(result.replayed).toBe(true);
+    });
+
+    it('request cùng key thua cuộc thấy giỏ đã bị xoá → trả đơn của request thắng, không báo lỗi', async () => {
+      cart.findItems.mockResolvedValue([]);
+      orders.findByIdempotencyKey
+        .mockResolvedValueOnce(null) // lúc đầu chưa có đơn
+        .mockResolvedValueOnce(order()); // request thắng vừa commit xong
+
+      const result = await service.placeOrder('u1', 'key-12345678', dto);
+
+      expect(result.replayed).toBe(true);
+    });
+
+    it('mã KM báo hết lượt nhưng chính request cùng key vừa dùng → trả đơn đó', async () => {
+      promotions.getUsable.mockResolvedValue({
+        id: 'promo1',
+        discountPercent: 10,
+        maxDiscount: null,
+        perUserLimit: 1,
+      } as Promotion);
+      orders.placeOrder.mockRejectedValue(
+        new PromotionUnavailableError('USER_LIMIT'),
+      );
+      orders.findByIdempotencyKey
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(order());
+
+      const result = await service.placeOrder(
+        'u1',
+        'key-12345678',
+        dto,
+        'GIAM10',
+      );
       expect(result.replayed).toBe(true);
     });
 

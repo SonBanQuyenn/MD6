@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InventoryReason, Promotion } from '@prisma/client';
+import { CatalogCacheInvalidator } from '../cache/catalog-cache';
 import { PromotionsRepository } from '../promotions/promotions.repository';
 import { PromotionsService } from '../promotions/promotions.service';
 import { InventoryRepository } from './inventory.repository';
@@ -11,7 +12,11 @@ import { InventoryService } from './inventory.service';
 
 describe('InventoryService.adjust', () => {
   const repo = { adjust: jest.fn() };
-  const service = new InventoryService(repo as unknown as InventoryRepository);
+  const invalidator = { invalidateProducts: jest.fn() };
+  const service = new InventoryService(
+    repo as unknown as InventoryRepository,
+    invalidator as unknown as CatalogCacheInvalidator,
+  );
 
   beforeEach(() => repo.adjust.mockReset());
 
@@ -31,6 +36,8 @@ describe('InventoryService.adjust', () => {
       actorId: 'w1',
     });
     expect(result.product.stock).toBe(15);
+    // tồn kho đổi → cache chi tiết sản phẩm được làm mới
+    expect(invalidator.invalidateProducts).toHaveBeenCalledWith(['p1']);
   });
 
   it('xuất quá tồn kho → 409 kèm số còn lại', async () => {
