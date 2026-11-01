@@ -33,4 +33,25 @@ export const envValidationSchema = Joi.object({
     then: Joi.boolean().default(true),
     otherwise: Joi.boolean().default(false),
   }),
+
+  // ---------- Email (dev: Mailpit ở localhost:1025, xem thư tại http://localhost:8025) ----------
+  // Dùng 127.0.0.1 thay vì localhost: Node có thể phân giải localhost ra IPv6 (::1)
+  // trong khi docker-compose chỉ mở cổng trên IPv4 127.0.0.1.
+  SMTP_HOST: Joi.string().hostname().default('127.0.0.1'),
+  SMTP_PORT: Joi.number().port().default(1025),
+  SMTP_SECURE: Joi.boolean().default(false),
+  SMTP_USER: Joi.string().allow('').optional(),
+  SMTP_PASS: Joi.string().allow('').optional(),
+  MAIL_FROM: Joi.string().default('ShopFast <no-reply@shopfast.local>'),
+
+  // ---------- Tác vụ nền ----------
+  // Nhắc thanh toán sau bao lâu (ms). SRS: 30 phút. Demo có thể hạ xuống 60000 (1 phút).
+  PAYMENT_REMINDER_DELAY_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(30 * 60 * 1000),
+  // Báo cáo doanh thu hằng đêm — cron theo giờ Việt Nam. Mặc định 23:00 mỗi ngày.
+  DAILY_REPORT_CRON: Joi.string().default('0 23 * * *'),
+  // Tỉ lệ lỗi giả lập của API đối tác kho (0 → 1). Đặt 1 để demo retry + dead letter.
+  PARTNER_SYNC_FAILURE_RATE: Joi.number().min(0).max(1).default(0),
 });
