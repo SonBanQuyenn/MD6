@@ -29,7 +29,11 @@ model User {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  refreshTokens RefreshToken[]
+  refreshTokens      RefreshToken[]
+  cartItems          CartItem[]
+  orders             Order[]
+  statusChanges      OrderStatusHistory[]
+  inventoryMovements InventoryMovement[]
 
   @@map("users")
 }
@@ -97,8 +101,165 @@ model Product {
   category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   brand    Brand    @relation(fields: [brandId], references: [id], onDelete: Restrict)
 
+  cartItems          CartItem[]
+  orderItems         OrderItem[]
+  inventoryMovements InventoryMovement[]
+
   @@index([categoryId, price])
   @@index([brandId, price])
   @@index([isActive, createdAt(sort: Desc)])
   @@map("products")
+}
+
+// ======================= Giỏ hàng & Đơn hàng (F06.2, F06.3) =======================
+
+/// Mỗi dòng = 1 sản phẩm trong giỏ của 1 khách. Không cần bảng "carts" riêng.
+model CartItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  quantity  Int
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@map("cart_items")
+}
+
+/// Mã khuyến mãi có giới hạn lượt dùng (dùng cho POST /orders/promotional).
+model Promotion {
+  id              String   @id @default(uuid()) @db.Uuid
+  code            String   @unique
+  description     String   @default("")
+  /// Phần trăm giảm, 1–90
+  discountPercent Int      @map("discount_percent")
+  /// Giảm tối đa (VND); null = không giới hạn
+  maxDiscount     Int?     @map("max_discount")
+  maxUses         Int      @map("max_uses")
+  usedCount       Int      @default(0) @map("used_count")
+  perUserLimit    Int      @default(1) @map("per_user_limit")
+  startsAt        DateTime @map("starts_at") @db.Timestamptz(3)
+  endsAt          DateTime @map("ends_at") @db.Timestamptz(3)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  orders Order[]
+
+  @@map("promotions")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PACKING
+  SHIPPING
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+}
+
+enum PaymentMethod {
+  COD
+  MOCK_ONLINE
+}
+
+model Order {
+  id              String        @id @default(uuid()) @db.Uuid
+  /// Mã dễ đọc cho khách/nhân viên, ví dụ SF-20261101-7K2QX9AB
+  code            String        @unique
+  userId          String        @map("user_id") @db.Uuid
+  status          OrderStatus   @default(PENDING)
+  paymentStatus   PaymentStatus @default(UNPAID) @map("payment_status")
+  paymentMethod   PaymentMethod @map("payment_method")
+  subtotal        Int
+  discount        Int           @default(0)
+  total           Int
+  promotionId     String?       @map("promotion_id") @db.Uuid
+  /// Khoá chống đặt trùng (header Idempotency-Key), duy nhất theo từng khách
+  idempotencyKey  String        @map("idempotency_key")
+  shippingAddress Json          @map("shipping_address")
+  note            String?
+  paidAt          DateTime?     @map("paid_at") @db.Timestamptz(3)
+  cancelledAt     DateTime?     @map("cancelled_at") @db.Timestamptz(3)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  promotion          Promotion?           @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+  items              OrderItem[]
+  statusHistory      OrderStatusHistory[]
+  inventoryMovements InventoryMovement[]
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("orders")
+}
+
+/// Lưu BẢN CHỤP tên + giá lúc đặt → đổi giá sản phẩm sau này không làm thay đổi đơn cũ.
+model OrderItem {
+  id          String @id @default(uuid()) @db.Uuid
+  orderId     String @map("order_id") @db.Uuid
+  productId   String @map("product_id") @db.Uuid
+  productName String @map("product_name")
+  sku         String
+  unitPrice   Int    @map("unit_price")
+  quantity    Int
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id          String       @id @default(uuid()) @db.Uuid
+  orderId     String       @map("order_id") @db.Uuid
+  fromStatus  OrderStatus? @map("from_status")
+  toStatus    OrderStatus  @map("to_status")
+  changedById String?      @map("changed_by_id") @db.Uuid
+  note        String?
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy User? @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+  @@map("order_status_history")
+}
+
+enum InventoryReason {
+  ORDER
+  CANCEL
+  MANUAL_ADJUST
+  PARTNER_SYNC
+}
+
+/// Nhật ký mọi lần tồn kho thay đổi → truy vết được "vì sao còn N sản phẩm".
+model InventoryMovement {
+  id         String          @id @default(uuid()) @db.Uuid
+  productId  String          @map("product_id") @db.Uuid
+  delta      Int
+  stockAfter Int             @map("stock_after")
+  reason     InventoryReason
+  orderId    String?         @map("order_id") @db.Uuid
+  actorId    String?         @map("actor_id") @db.Uuid
+  note       String?
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([productId, createdAt(sort: Desc)])
+  @@map("inventory_movements")
 }
