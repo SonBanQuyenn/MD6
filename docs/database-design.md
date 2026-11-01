@@ -24,7 +24,6 @@ erDiagram
   users ||--o{ verification_codes : receives
 
   categories ||--o{ products : contains
-  categories ||--o{ categories : "parent of"
   brands ||--o{ products : makes
 
   carts ||--o{ cart_items : contains
@@ -76,7 +75,6 @@ erDiagram
     uuid id PK
     string name
     string slug UK
-    uuid parent_id FK
   }
   brands {
     uuid id PK
@@ -288,6 +286,12 @@ Huỷ đơn → **cộng lại tồn kho** trong cùng transaction + ghi `invent
 | `orders (status, created_at)` | Màn hình kho, job nhắc thanh toán |
 | `tickets (status, created_at)` | Danh sách ticket của CSKH |
 | `order_status_history (order_id, created_at)` | Dòng thời gian của đơn |
+
+Danh mục là **một cấp** (không có danh mục cha/con) — đủ cho ~10 nhóm hàng của ShopFast và
+giữ truy vấn lọc đơn giản. Nếu cần nhiều cấp, thêm cột `parent_id` sau mà không ảnh hưởng API.
+
+Tìm theo tên (`?q=`) dùng `ILIKE` — chưa có index, chấp nhận với vài nghìn sản phẩm. Nâng cấp khi
+dữ liệu lớn: extension `pg_trgm` + GIN index.
 
 Phân trang: dùng `page/limit` (offset) cho đơn giản và dễ hiển thị số trang; giới hạn
 `limit ≤ 50` để tránh truy vấn quá nặng. (Keyset pagination là hướng nâng cấp nếu dữ liệu lớn.)
