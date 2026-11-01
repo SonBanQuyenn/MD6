@@ -2,7 +2,7 @@
 
 Nền tảng thương mại điện tử (backend NestJS + frontend React) — đồ án Module 06.
 
-> **Trạng thái:** Phase 3 — danh mục sản phẩm. Lộ trình: [docs/development-roadmap.md](docs/development-roadmap.md)
+> **Trạng thái:** Phase 3 — sản phẩm, giỏ hàng, đơn hàng, tồn kho. Lộ trình: [docs/development-roadmap.md](docs/development-roadmap.md)
 
 | Thành phần | Công nghệ |
 |---|---|
@@ -86,6 +86,24 @@ Gửi access token qua header: `Authorization: Bearer <accessToken>`.
 | `DELETE /api/products/:id` | ADMIN | Ngừng bán (giữ lại dữ liệu cho đơn hàng cũ) |
 | `GET /api/categories`, `GET /api/brands` | Công khai | Danh sách (kèm số sản phẩm đang bán) |
 | `POST/PATCH/DELETE /api/categories/:id`, `/api/brands/:id` | ADMIN | Quản lý; không xoá được khi còn sản phẩm (409) |
+
+### API giỏ hàng, đơn hàng, tồn kho
+
+| Method & đường dẫn | Quyền | Mô tả |
+|---|---|---|
+| `GET /api/cart` | CUSTOMER | Giỏ hàng theo giá hiện tại, cảnh báo hết hàng / ngừng bán |
+| `POST /api/cart/items` · `PATCH/DELETE /api/cart/items/:productId` · `DELETE /api/cart` | CUSTOMER | Thêm (cộng dồn), sửa số lượng, xoá |
+| `POST /api/orders` | CUSTOMER | Đặt đơn từ giỏ. **Bắt buộc header `Idempotency-Key`** (8–100 ký tự); gửi lại cùng key → trả đơn cũ (200, header `Idempotent-Replayed: true`) |
+| `POST /api/orders/promotional` | CUSTOMER | Như trên + `promotionCode` |
+| `GET /api/orders/me` | CUSTOMER | Lịch sử đơn, `?status&page&limit` |
+| `GET /api/orders/:id` | Chủ đơn hoặc nhân viên | Chi tiết + dòng thời gian trạng thái |
+| `POST /api/orders/:id/cancel` | CUSTOMER | Huỷ đơn đang chờ xác nhận (hoàn kho) |
+| `POST /api/orders/:id/pay` | CUSTOMER | Thanh toán **giả lập** cho `MOCK_ONLINE` |
+| `GET /api/orders` | SUPPORT_AGENT, WAREHOUSE_STAFF, ADMIN | Mọi đơn hàng |
+| `PATCH /api/orders/:id/status` | WAREHOUSE_STAFF, ADMIN | `PENDING → CONFIRMED → PACKING → SHIPPING → DELIVERED`, huỷ khi `PENDING/CONFIRMED` |
+| `POST /api/inventory/adjustments` | WAREHOUSE_STAFF, ADMIN | Nhập (`delta > 0`) / xuất (`delta < 0`) kho |
+| `GET /api/inventory/low-stock` · `GET /api/inventory/products/:id/movements` | WAREHOUSE_STAFF, ADMIN | Sắp hết hàng · lịch sử biến động |
+| `GET/POST /api/promotions` | ADMIN | Quản lý mã khuyến mãi |
 
 Dừng hạ tầng: `docker compose down` (thêm `-v` để **xoá luôn dữ liệu**).
 

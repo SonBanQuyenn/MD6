@@ -63,6 +63,23 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
 - **Thay thế đã cân nhắc:** khoá phân tán Redis (phức tạp, Redis hỏng là hỏng bán hàng);
   `SELECT FOR UPDATE` (đúng nhưng dài dòng hơn); kiểm tra ở frontend (vô nghĩa về an toàn).
 - **Lớp bảo vệ thứ 2:** `CHECK (stock >= 0)`.
+- **Trạng thái:** Chấp nhận — hiện thực ở Phase 3b (`backend/src/orders/orders.repository.ts`).
+- **Chi tiết đã hiện thực:**
+  - Câu UPDATE còn kiểm tra `price = giá khách đã thấy` và `is_active = true` → admin đổi giá /
+    ngừng bán đúng lúc khách bấm đặt thì đơn bị từ chối (409 "Giá vừa thay đổi"), không bán sai giá.
+  - Trừ kho theo **thứ tự product id** cho mọi đơn → 2 đơn cùng chứa A và B không khoá chéo nhau
+    (deadlock).
+  - **Chống đặt trùng:** header `Idempotency-Key` + `UNIQUE(user_id, idempotency_key)`. Gửi lại cùng
+    key → trả đơn cũ. 2 request cùng key chạy song song → request thua vấp UNIQUE, rollback, và nhận
+    đơn của request thắng.
+  - **Mã khuyến mãi:** trừ lượt bằng `UPDATE … WHERE used_count < max_uses` (so sánh 2 cột qua
+    Prisma field reference) + `CHECK (used_count <= max_uses)`. Giới hạn lượt/khách dùng
+    `pg_advisory_xact_lock(user, mã)` để 2 đơn đồng thời của cùng khách chạy lần lượt.
+  - **Đổi trạng thái:** khoá lạc quan `UPDATE … WHERE status = trạng_thái_cũ`; 0 dòng → 409.
+    Huỷ đơn → hoàn kho trong cùng transaction, ghi `inventory_movements`.
+- **Bằng chứng:** `test/orders.e2e-spec.ts` — 8 khách mua đồng thời sản phẩm còn 3 → đúng 3 đơn
+  thành công, tồn kho về 0 (đã chạy lặp 4 lần, đều ổn định).
+- **Giới hạn:** thanh toán online là **giả lập** (`POST /orders/:id/pay`), chưa có cổng thanh toán thật.
 
 ## TD-05 — Realtime: Socket.IO + phòng riêng mỗi đơn + Redis adapter
 - **Lý do:** Socket.IO có sẵn **tự kết nối lại**, **rooms**, fallback long-polling khi mạng chặn
