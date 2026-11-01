@@ -10,7 +10,9 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { Role } from '@prisma/client';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -25,15 +27,25 @@ export class ProductsController {
   /** GET /api/products — danh sách có lọc + phân trang (công khai). */
   @Get()
   @Public()
-  list(@Query() query: ListProductsQueryDto) {
-    return this.productsService.list(query);
+  async list(
+    @Query() query: ListProductsQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { data, cache } = await this.productsService.listWithCache(query);
+    res.setHeader('X-Cache', cache); // HIT | MISS | BYPASS — để quan sát / đo hiệu năng
+    return data;
   }
 
   /** GET /api/products/:id — chi tiết sản phẩm (công khai). */
   @Get(':id')
   @Public()
-  getOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.productsService.getPublic(id);
+  async getOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { data, cache } = await this.productsService.getPublicWithCache(id);
+    res.setHeader('X-Cache', cache);
+    return data;
   }
 
   @Post()

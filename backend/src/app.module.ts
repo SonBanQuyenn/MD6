@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module';
 import { CartModule } from './cart/cart.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { CacheModule } from './cache/cache.module';
 import { AppConfigModule } from './config/app-config.module';
 import { HealthModule } from './health/health.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -18,6 +19,7 @@ import { UsersModule } from './users/users.module';
     AppConfigModule,
     PrismaModule,
     RedisModule,
+    CacheModule,
     // API chỉ THÊM job vào hàng đợi; xử lý job nằm ở tiến trình worker (src/worker.ts)
     JobsModule.forRoot('producer'),
     HealthModule,
