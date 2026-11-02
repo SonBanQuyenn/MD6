@@ -18,7 +18,6 @@ import { CategoriesService } from './categories.service';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Danh mục')
-@ApiBearerAuth()
 @Controller('categories')
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
@@ -30,12 +29,14 @@ export class CategoriesController {
     return this.categoriesService.list();
   }
 
+  @ApiBearerAuth()
   @Post()
   @Roles(Role.ADMIN)
   create(@Body() dto: CreateTaxonomyDto) {
     return this.categoriesService.create(dto);
   }
 
+  @ApiBearerAuth()
   @Patch(':id')
   @Roles(Role.ADMIN)
   update(
@@ -45,6 +46,7 @@ export class CategoriesController {
     return this.categoriesService.update(id, dto);
   }
 
+  @ApiBearerAuth()
   @Delete(':id')
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)

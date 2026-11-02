@@ -22,7 +22,6 @@ import { ProductsService } from './products.service';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Sản phẩm')
-@ApiBearerAuth()
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
@@ -51,12 +50,14 @@ export class ProductsController {
     return data;
   }
 
+  @ApiBearerAuth()
   @Post()
   @Roles(Role.ADMIN)
   create(@Body() dto: CreateProductDto) {
     return this.productsService.create(dto);
   }
 
+  @ApiBearerAuth()
   @Patch(':id')
   @Roles(Role.ADMIN)
   update(
@@ -67,6 +68,7 @@ export class ProductsController {
   }
 
   /** DELETE /api/products/:id — ngừng bán sản phẩm. */
+  @ApiBearerAuth()
   @Delete(':id')
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)

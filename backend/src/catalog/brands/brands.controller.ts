@@ -18,7 +18,6 @@ import { BrandsService } from './brands.service';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Thương hiệu')
-@ApiBearerAuth()
 @Controller('brands')
 export class BrandsController {
   constructor(private readonly brandsService: BrandsService) {}
@@ -30,12 +29,14 @@ export class BrandsController {
     return this.brandsService.list();
   }
 
+  @ApiBearerAuth()
   @Post()
   @Roles(Role.ADMIN)
   create(@Body() dto: CreateTaxonomyDto) {
     return this.brandsService.create(dto);
   }
 
+  @ApiBearerAuth()
   @Patch(':id')
   @Roles(Role.ADMIN)
   update(
@@ -45,6 +46,7 @@ export class BrandsController {
     return this.brandsService.update(id, dto);
   }
 
+  @ApiBearerAuth()
   @Delete(':id')
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
