@@ -15,6 +15,7 @@ import { Response } from 'express';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/types/auth-user';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import {
   ListOrdersQueryDto,
   PlaceOrderDto,
@@ -44,10 +45,11 @@ export class OrdersController {
 
   /**
    * POST /api/orders/promotional — đặt đơn có mã khuyến mãi.
-   * Tách endpoint riêng để Phase 6 áp hạn mức tần suất chặt hơn (yêu cầu F03).
+   * Tách endpoint riêng để áp hạn mức tần suất chặt hơn: 3 đơn / phút / tài khoản (F03.1).
    */
   @Post('promotional')
   @Roles(Role.CUSTOMER)
+  @RateLimit('promoOrder')
   async placePromotional(
     @CurrentUser() user: AuthUser,
     @Headers('idempotency-key') idempotencyKey: string | undefined,

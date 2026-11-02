@@ -34,6 +34,13 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.boolean().default(false),
   }),
 
+  // ---------- Rate limit (F03) ----------
+  // Hạn mức chung cho mọi API: số request / phút / định danh (tài khoản hoặc IP).
+  RATE_LIMIT_GLOBAL_PER_MINUTE: Joi.number().integer().min(1).default(100),
+  // Số proxy đứng trước app (Nginx = 1) → Express đọc IP thật từ X-Forwarded-For.
+  // 0 khi chạy trực tiếp: KHÔNG tin header này, vì khách có thể tự giả mạo nó.
+  TRUST_PROXY: Joi.number().integer().min(0).max(5).default(0),
+
   // ---------- Email (dev: Mailpit ở localhost:1025, xem thư tại http://localhost:8025) ----------
   // Dùng 127.0.0.1 thay vì localhost: Node có thể phân giải localhost ra IPv6 (::1)
   // trong khi docker-compose chỉ mở cổng trên IPv4 127.0.0.1.
