@@ -236,7 +236,7 @@ sequenceDiagram
   A->>DB: lưu hội thoại + tool calls
   A-->>S: trả lời + kết quả tool + đề xuất chờ duyệt
   S->>A: POST /support/actions/:id/approve
-  A->>A: OrdersService.cancel() (kiểm tra nghiệp vụ lại lần nữa)
+  A->>A: OrdersService.changeStatusByStaff(CANCELLED) — kiểm tra nghiệp vụ lại lần nữa
 ```
 
 ## 6. Suy giảm có kiểm soát (NFR-REL-04)

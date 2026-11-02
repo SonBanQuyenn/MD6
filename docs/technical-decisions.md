@@ -146,6 +146,23 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
 - **API key** chỉ ở backend (biến môi trường / SSM), frontend không bao giờ gọi LLM trực tiếp.
 - **Khi sự cố:** timeout 20 s, retry 2 lần với backoff; vẫn lỗi → thông báo cho nhân viên, phân
   loại ticket dùng bộ từ khoá dự phòng.
+- **Hiện thực (2026-11-02):**
+  - SDK chính thức `@anthropic-ai/sdk`; model mặc định **`claude-opus-5-5`** (`AI_MODEL` đổi được, ví dụ
+    `claude-haiku-5-5` để giảm chi phí cho phân loại — chỉ đổi khi đã đo chất lượng).
+  - `output_config.effort`: `medium` cho trợ lý, `low` cho phân loại (việc đơn giản → ít token).
+  - Phân loại dùng **structured output** (`output_config.format: json_schema`, enum nhóm) và vẫn kiểm
+    tra lại JSON phía server (`parseClassification`) — không tin tuyệt đối đầu ra model.
+  - Tool khai báo `strict: true` → tham số luôn đúng schema. Kết quả mọi tool của 1 lượt gửi lại trong
+    **một** message.
+  - `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`): khi model từ chối vì bộ lọc an toàn,
+    Anthropic tự chạy lại trên model dự phòng; nếu vẫn từ chối (`stop_reason: refusal`) → trả lời
+    "không thể hỗ trợ, xử lý thủ công".
+  - Tối đa **5 vòng tool** mỗi câu hỏi (chặn vòng lặp vô hạn / tốn tiền).
+  - Nội dung khách viết được bọc trong `<ticket>` và prompt nói rõ đó là dữ liệu, không phải chỉ dẫn
+    (giảm prompt injection). Lớp chặn thật sự vẫn là: AI **không có** tool ghi trực tiếp.
+  - Hội thoại nhân viên ↔ AI lưu với `internal = true` — khách không thấy.
+  - **Chưa kiểm chứng với Claude thật** trong môi trường dev (chưa có key) — mọi test chạy với Mock /
+    client giả. Cần chạy thử với key thật trước buổi bảo vệ.
 
 ## TD-08 — Cache-aside; danh sách chỉ lưu ID; version key
 - **Trạng thái:** Chấp nhận — hiện thực ở Phase 7 (`backend/src/cache`).

@@ -125,6 +125,23 @@ Gửi access token qua header: `Authorization: Bearer <accessToken>`.
 Vượt hạn mức → **429** + header `Retry-After` + body `{ message: "…thử lại sau N giây.", retryAfter: N }`.
 Mọi phản hồi có `X-RateLimit-Limit` / `X-RateLimit-Remaining`. Sau Nginx đặt `TRUST_PROXY=1` để lấy IP thật.
 
+### Hỗ trợ khách hàng + trợ lý AI (F01)
+
+Mặc định **`AI_PROVIDER=mock`**: kịch bản cố định, **không phải AI thật** (mọi câu trả lời có nhãn
+`[MOCK AI…]`, API trả `mock: true`), nhưng tool vẫn đọc dữ liệu thật. Dùng Claude thật: đặt
+`AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` (model mặc định `claude-opus-5-5`, đổi bằng `AI_MODEL`).
+
+| Method & đường dẫn | Quyền | Mô tả |
+|---|---|---|
+| `POST /api/support/tickets` | CUSTOMER | `{ subject, message, orderId? }` → tạo ticket, phân loại tự động ở worker |
+| `GET /api/support/tickets/me` | CUSTOMER | Ticket của tôi |
+| `GET /api/support/tickets` | SUPPORT_AGENT, ADMIN | Mọi ticket, `?status&category&page&limit` |
+| `GET /api/support/tickets/:id` | Chủ ticket / CSKH | Khách: không thấy hội thoại nội bộ với AI. CSKH: thêm `toolCalls`, `pendingActions` |
+| `POST /api/support/tickets/:id/messages` | Chủ ticket / CSKH | Nhắn tin; CSKH trả lời lần đầu → `IN_PROGRESS` + nhận ticket |
+| `PATCH /api/support/tickets/:id` | SUPPORT_AGENT, ADMIN | `{ status?, category? }` — phân loại tay (`classifiedBy: HUMAN`) |
+| `POST /api/support/tickets/:id/assistant` | SUPPORT_AGENT, ADMIN | `{ question }` → `{ answer, mock, toolCalls, pendingActionIds, guardrail }`; AI lỗi → 503 |
+| `POST /api/support/actions/:id/approve` · `/reject` | SUPPORT_AGENT, ADMIN | Duyệt / từ chối thao tác AI đề xuất (huỷ đơn) |
+
 ### Realtime — theo dõi đơn hàng (F02)
 
 Socket.IO tại đường dẫn **`/api/socket.io`** (Nginx / Vite chỉ cần chuyển tiếp `/api`, nhớ bật WebSocket).
