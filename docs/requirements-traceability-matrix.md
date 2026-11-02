@@ -46,26 +46,26 @@ Chú thích trạng thái: ⬜ Chưa làm · 🟨 Đang làm · ✅ Xong & đã 
 | Mã | Yêu cầu | Hiện thực | Bằng chứng | Phase | Trạng thái |
 |---|---|---|---|---|---|
 | NFR-TECH-01 | NestJS 10 / Node 20 / TS / PG 16 / Redis 7 | `package.json`, `.nvmrc`, image tags | File cấu hình | P1 | ⬜ |
-| NFR-TECH-02 | Docker + Compose | `docker-compose*.yml`, Dockerfile | `docker compose up` chạy được | P1, P12 | ⬜ |
+| NFR-TECH-02 | Docker + Compose | `backend/Dockerfile`, `frontend/Dockerfile` (multi-stage), `docker-compose.yml` (dev), `docker-compose.prod.yml` | `docker compose up` chạy; stack prod dựng + deploy thật bằng `rehearsal.sh` | P1, P12 | ✅ |
 | NFR-TECH-03 | Mọi thay đổi vào main qua PR | Branch protection | Ảnh chụp cấu hình + lịch sử PR | P12 | ⬜ |
 | NFR-TECH-04 | Tách controller / service / repository | Cấu trúc module | Code review, ESLint rule cấm import Prisma trong controller | Mọi phase | ⬜ |
 | NFR-PERF-01 | Tra cứu có cache < 50 ms p95 | Cache P7 | k6 cục bộ: **p95 chi tiết 8,53 ms, danh sách 16,47 ms** — [performance-report](performance-report.md). Còn đo lại trên EC2 | P7, P13 | 🟨 |
 | NFR-PERF-02 | Đặt hàng < 300 ms p95 | Transaction gọn, job nền | k6 | P8, P11 | ⬜ |
 | NFR-PERF-03 | Realtime < 1 s | Gateway P5 | Đo trong integration test (cục bộ): PATCH → client nhận sự kiện **15–37 ms** — [performance-report](performance-report.md). Còn đo lại trên EC2 | P5, P13 | 🟨 |
 | NFR-PERF-04 | Cache hit ≥ 80% | `CacheMetrics`, `GET /api/admin/metrics/cache`, header `X-Cache` | k6 cục bộ: **99,39 %** request HIT (tập nóng 100 SP) — cần đo với phân bố thực tế hơn | P7 | 🟨 |
-| NFR-PERF-05 | Deploy < 10 phút | Pipeline P12 | Thời lượng run GitHub Actions | P12 | ⬜ |
+| NFR-PERF-05 | Deploy < 10 phút | Image build trên GitHub Actions (cache GHA), deploy.sh ~15 s | Bước deploy đo được 13–16 s cục bộ; tổng thời gian CD đo khi chạy trên AWS | P12, P13 | 🟨 |
 | NFR-SEC-01 | HTTPS + redirect | Nginx + certbot | `curl -I http://...` → 301 | P13 | ⬜ |
 | NFR-SEC-02 | SG tối thiểu, DB/Redis không public | SG + compose prod | Ảnh chụp SG, `nmap` từ ngoài | P13 | ⬜ |
 | NFR-SEC-03 | Không khoá dài hạn | OIDC + Instance Role | Workflow dùng `aws-actions/configure-aws-credentials` với `role-to-assume` | P12, P13 | ⬜ |
 | NFR-SEC-04 | Không secret trong code / Dockerfile / pipeline | `.env.example`, GitHub Secrets, job `secret-scan` (gitleaks, `.gitleaks.toml`) | gitleaks quét 88 commit: không có secret (4 chuỗi giả trong file test được allowlist theo đường dẫn) | P1, P11 | ✅ |
 | NFR-SEC-05 | IAM least privilege, group, MFA | Tài liệu + policy JSON | `deployment-guide.md` | P13 | ⬜ |
-| NFR-REL-01 | Deploy không gián đoạn | Blue-green | Chạy k6 trong lúc deploy → 0 lỗi | P12 | ⬜ |
-| NFR-REL-02 | Health check sau deploy, rollback < 2' | `infra/deploy/deploy.sh` | Lần deploy cố tình hỏng → rollback, đo thời gian | P12 | ⬜ |
+| NFR-REL-01 | Deploy không gián đoạn | Blue/green `infra/deploy/deploy.sh` + `nginx -s reload` | Diễn tập: gọi liên tục qua Nginx trong lúc deploy → **228 / 243 request, 0 lỗi** — [deployment-guide](deployment-guide.md) | P12 | ✅ |
+| NFR-REL-02 | Health check sau deploy, rollback < 2' | `deploy.sh` (health check trước + sau chuyển traffic, tự quay lui), `rollback.sh`, CD `auto-rollback` | Diễn tập: image hỏng bị chặn; rollback **6–7 s** | P12 | ✅ |
 | NFR-REL-03 | Diễn tập khôi phục < 30' | `restore.sh` | Biên bản đo thật | P14 | ⬜ |
 | NFR-REL-04 | Suy giảm có kiểm soát | Fallback Redis/AI/email | Test F04.4, F01 fallback | P4, P7, P8 | ⬜ |
 | NFR-QUA-01 | Coverage nghiệp vụ ≥ 60% | `jest.coverageThreshold`: **mỗi** `*.service.ts` ≥ 60 % lines | Đo thật: 26 service gộp 91,2 %, thấp nhất 60 %; toàn bộ 63,1 % — [testing-report](testing-report.md) | P11 · `feature/testing-quality` | ✅ |
 | NFR-QUA-02 | CI chặn merge khi fail | 4 job: secret-scan, backend-quality (lint, format, unit + ngưỡng coverage, build), backend-integration, frontend-quality | Cần bật branch protection (bạn tự bật — xem README); link run bị chặn (D03) | P11, P12 | 🟨 |
-| NFR-QUA-03 | Image tag theo SHA | Workflow build | Danh sách tag trong registry | P12 | ⬜ |
+| NFR-QUA-03 | Image tag theo SHA | `cd.yml` tag `${{ sha }}`, không dùng `latest` | Kiểm khi CD chạy thật trên ECR (Phase 13) | P12 | 🟨 |
 
 ## Rubric & Deliverables
 

@@ -212,6 +212,17 @@ Access token chỉ giữ trong bộ nhớ (không `localStorage`); tải lại t
 khôi phục phiên (lần đầu chưa có cookie, console sẽ có một request 401 — bình thường). Phân quyền trên
 giao diện chỉ để trải nghiệm; quyền thật do backend kiểm tra.
 
+## Docker production & CI/CD
+
+- Image: `backend/Dockerfile` (API + worker + migration, multi-stage, user không phải root),
+  `frontend/Dockerfile` (build Node → Nginx).
+- `docker-compose.prod.yml`: Nginx (cổng 80/443 duy nhất), api-blue / api-green, worker, PostgreSQL,
+  Redis, Mailpit — DB / Redis **không** mở cổng.
+- Deploy blue/green: `infra/deploy/deploy.sh <sha>`, quay lui: `infra/deploy/rollback.sh`,
+  diễn tập đầy đủ: `infra/deploy/rehearsal.sh` (chạy tự động trong CI).
+- CD lên AWS (`.github/workflows/cd.yml`) đang **tắt** tới khi có hạ tầng — xem
+  [docs/deployment-guide.md](docs/deployment-guide.md).
+
 ## Lệnh thường dùng
 
 | Lệnh (trong `backend/` hoặc `frontend/`) | Tác dụng |
