@@ -41,6 +41,18 @@ export const envValidationSchema = Joi.object({
   // 0 khi chạy trực tiếp: KHÔNG tin header này, vì khách có thể tự giả mạo nó.
   TRUST_PROXY: Joi.number().integer().min(0).max(5).default(0),
 
+  // ---------- Trợ lý AI (F01) ----------
+  // mock = kịch bản cố định, KHÔNG phải AI thật (test/CI/khi chưa có key); anthropic = Claude thật
+  AI_PROVIDER: Joi.string().valid('mock', 'anthropic').default('mock'),
+  ANTHROPIC_API_KEY: Joi.string().when('AI_PROVIDER', {
+    is: 'anthropic',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  AI_MODEL: Joi.string().default('claude-opus-5-5'),
+  // Thời gian chờ mỗi lần gọi API (ms); SDK tự thử lại 2 lần khi lỗi tạm thời
+  AI_TIMEOUT_MS: Joi.number().integer().min(1000).default(20_000),
+
   // ---------- Email (dev: Mailpit ở localhost:1025, xem thư tại http://localhost:8025) ----------
   // Dùng 127.0.0.1 thay vì localhost: Node có thể phân giải localhost ra IPv6 (::1)
   // trong khi docker-compose chỉ mở cổng trên IPv4 127.0.0.1.

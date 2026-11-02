@@ -38,6 +38,8 @@ const STAFF_ROLES: Role[] = [
   Role.ADMIN,
 ];
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
 
 export interface PlaceOrderResult {
@@ -181,6 +183,20 @@ export class OrdersService {
 
   async listAll(query: ListOrdersQueryDto): Promise<Paginated<OrderView>> {
     return this.list(query);
+  }
+
+  /**
+   * Tra cứu đơn cho trợ lý AI / CSKH (F01.2): nhận id (UUID) hoặc mã đơn SF-…, đọc thẳng DB.
+   * Kèm `userId` để tool biết đơn có thuộc khách của ticket hay không. Không thấy → null.
+   */
+  async findForSupport(
+    idOrCode: string,
+  ): Promise<(OrderView & { userId: string }) | null> {
+    const key = idOrCode.trim();
+    const order = UUID_PATTERN.test(key)
+      ? await this.orders.findById(key)
+      : await this.orders.findByCode(key.toUpperCase());
+    return order ? { ...toOrderView(order), userId: order.userId } : null;
   }
 
   /** Khách chỉ xem được đơn của mình; nhân viên xem được mọi đơn. */

@@ -32,6 +32,9 @@ interface CachedListPage {
   total: number;
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const productCacheOptions = {
   ttlSeconds: CACHE_TTL.PRODUCT,
   nullTtlSeconds: CACHE_TTL.NULL,
@@ -46,6 +49,18 @@ export class ProductsService {
     private readonly cache: CacheService,
     private readonly invalidator: CatalogCacheInvalidator,
   ) {}
+
+  /**
+   * Tra cứu tồn kho cho trợ lý AI (F01.2): đọc THẲNG DB, không qua cache, nhận id hoặc SKU.
+   * Trả cả sản phẩm đã ngừng bán (nhân viên cần biết). Không thấy → null.
+   */
+  async findForSupport(idOrSku: string): Promise<ProductView | null> {
+    const key = idOrSku.trim();
+    const product = UUID_PATTERN.test(key)
+      ? await this.products.findById(key)
+      : await this.products.findBySku(key.toUpperCase());
+    return product ? toProductView(product) : null;
+  }
 
   async list(query: ListProductsQueryDto): Promise<Paginated<ProductView>> {
     return (await this.listWithCache(query)).data;

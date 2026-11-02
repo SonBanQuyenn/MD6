@@ -12,6 +12,7 @@ import { OrdersModule } from './orders/orders.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PromotionsModule } from './promotions/promotions.module';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
+import { SupportModule } from './support/support.module';
 import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './users/users.module';
 
@@ -32,6 +33,7 @@ import { UsersModule } from './users/users.module';
     CartModule,
     PromotionsModule,
     OrdersModule,
+    SupportModule,
     JobsAdminModule,
   ],
 })

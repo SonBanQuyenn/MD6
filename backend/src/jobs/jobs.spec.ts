@@ -108,6 +108,7 @@ describe('JobsProducer', () => {
       email as unknown as Queue,
       invoice as unknown as Queue,
       sync as unknown as Queue,
+      makeQueue() as unknown as Queue,
       { get: () => 1_800_000 } as unknown as ConfigService,
     );
   });

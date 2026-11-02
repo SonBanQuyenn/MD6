@@ -10,6 +10,7 @@ import {
   OrderJobData,
   QUEUE_JOB_OPTIONS,
   QUEUES,
+  TicketJobData,
   VerificationCodeJobData,
 } from './queues';
 
@@ -22,6 +23,7 @@ export class JobsProducer {
     @InjectQueue(QUEUES.EMAIL) private readonly emailQueue: Queue,
     @InjectQueue(QUEUES.INVOICE) private readonly invoiceQueue: Queue,
     @InjectQueue(QUEUES.INVENTORY_SYNC) private readonly syncQueue: Queue,
+    @InjectQueue(QUEUES.SUPPORT) private readonly supportQueue: Queue,
     config: ConfigService,
   ) {
     this.paymentReminderDelay = config.get<number>(
@@ -70,6 +72,15 @@ export class JobsProducer {
       jobId: jobIds.verificationCode(data.codeId),
       removeOnComplete: true,
       removeOnFail: { age: 10 * 60 },
+    });
+  }
+
+  /** Ticket mới → phân loại ở worker (F01.1). */
+  async classifyTicket(ticketId: string): Promise<void> {
+    const data: TicketJobData = { ticketId };
+    await this.supportQueue.add(JOBS.CLASSIFY_TICKET, data, {
+      ...QUEUE_JOB_OPTIONS[QUEUES.SUPPORT],
+      jobId: jobIds.classifyTicket(ticketId),
     });
   }
 

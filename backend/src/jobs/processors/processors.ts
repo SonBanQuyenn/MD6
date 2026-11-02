@@ -8,12 +8,14 @@ import {
   JOBS,
   OrderJobData,
   QUEUES,
+  TicketJobData,
   VerificationCodeJobData,
 } from '../queues';
 import { InventorySyncService } from '../services/inventory-sync.service';
 import { InvoiceService } from '../services/invoice.service';
 import { OrderNotificationsService } from '../services/order-notifications.service';
 import { RevenueReportService } from '../services/revenue-report.service';
+import { TicketClassifierService } from '../../support/ticket-classifier.service';
 import { BaseProcessor } from './base.processor';
 
 /**
@@ -98,5 +100,19 @@ export class ScheduledProcessor extends BaseProcessor {
       default:
         throw new UnrecoverableError(`Job định kỳ không hỗ trợ: ${job.name}`);
     }
+  }
+}
+
+@Processor(QUEUES.SUPPORT, { concurrency: 3 })
+export class SupportProcessor extends BaseProcessor {
+  constructor(
+    failedJobs: FailedJobsRepository,
+    private readonly classifier: TicketClassifierService,
+  ) {
+    super(failedJobs);
+  }
+
+  process(job: Job<TicketJobData>) {
+    return this.classifier.classify(job.data.ticketId);
   }
 }

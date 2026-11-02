@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { AppConfigModule } from '../config/app-config.module';
 import { MailModule } from '../mail/mail.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { AiModule } from '../support/ai/ai.module';
+import { TicketClassifierService } from '../support/ticket-classifier.service';
+import { TicketsRepository } from '../support/tickets.repository';
 import { JobDataRepository } from './job-data.repository';
 import { JobsModule } from './jobs.module';
 import {
@@ -9,6 +12,7 @@ import {
   InventorySyncProcessor,
   InvoiceProcessor,
   ScheduledProcessor,
+  SupportProcessor,
 } from './processors/processors';
 import { JobSchedules } from './schedules';
 import { InventorySyncService } from './services/inventory-sync.service';
@@ -27,6 +31,7 @@ import { RevenueReportService } from './services/revenue-report.service';
     AppConfigModule,
     PrismaModule,
     MailModule,
+    AiModule,
     JobsModule.forRoot('worker'),
   ],
   providers: [
@@ -40,6 +45,9 @@ import { RevenueReportService } from './services/revenue-report.service';
     InvoiceProcessor,
     InventorySyncProcessor,
     ScheduledProcessor,
+    TicketsRepository,
+    TicketClassifierService,
+    SupportProcessor,
     JobSchedules,
   ],
 })
