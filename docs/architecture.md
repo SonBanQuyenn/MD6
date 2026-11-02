@@ -1,6 +1,8 @@
 # Kiến trúc hệ thống — ShopFast
 
-> Trạng thái: **bản thiết kế (Phase 0)**. Sẽ cập nhật khi hiện thực thay đổi.
+> Trạng thái (2026-11-02): **đã hiện thực** F01–F07 + Docker + CI/CD + sao lưu. Hạ tầng AWS (EC2, ECR,
+> S3, SSM, IAM) **đã chuẩn bị cấu hình nhưng chưa triển khai**. Các điểm khác so với thiết kế Phase 0
+> được liệt kê ở mục 7.
 
 ## 1. Phong cách kiến trúc: Modular Monolith
 
@@ -36,7 +38,7 @@ flowchart TB
     iam["IAM<br/>OIDC role cho GitHub<br/>Instance role cho EC2"]
 
     subgraph EC2["EC2 — Security Group: 80/443 public · 22 chỉ IP admin"]
-      nginx["Nginx<br/>TLS (Let's Encrypt) · HTTP→HTTPS<br/>static frontend · reverse proxy · WS upgrade"]
+      nginx["Nginx<br/>TLS (Let's Encrypt) · HTTP→HTTPS<br/>frontend tĩnh (deploy-state/www) · reverse proxy · WS upgrade"]
       subgraph net["Docker network nội bộ (không publish port)"]
         apiB["api (blue)"]
         apiG["api (green)"]
@@ -49,7 +51,7 @@ flowchart TB
     end
   end
 
-  llm["LLM API<br/>(tool calling)"]
+  llm["Anthropic Claude API<br/>(tool use · claude-opus-5-5)"]
 
   user -- HTTPS 443 --> nginx
   nginx --> apiB & apiG
@@ -87,25 +89,25 @@ flowchart TB
 | Cache / store | Redis 7 (`ioredis`) | Cache, bộ đếm rate limit, queue, Socket.IO adapter | SRS bắt buộc; 1 thành phần phục vụ 4 nhu cầu |
 | Hàng đợi | BullMQ (`@nestjs/bullmq`) | Job nền, retry, backoff, delayed, repeatable | PRD/SRS; chạy trên Redis có sẵn |
 | Realtime | Socket.IO (`@nestjs/websockets`) + `@socket.io/redis-adapter` | Theo dõi đơn | Tự reconnect, rooms; redis-adapter cho nhiều instance |
-| Rate limit | `@nestjs/throttler` + storage Redis | F03 | Tích hợp sẵn NestJS, hỗ trợ `getTracker` tuỳ biến |
+| Rate limit | Guard tự viết + Redis (Lua `INCR`+`PEXPIRE`) | F03 | Throttler đếm theo từng route, khó làm hạn mức chung theo tài khoản → guard ~100 dòng dễ giải thích (TD-06 sửa đổi) |
 | Health | `@nestjs/terminus` | F07.1 | Chuẩn NestJS |
 | API docs | `@nestjs/swagger` | F07.3 | Sinh tự động từ decorator |
-| Auth | `@nestjs/jwt`, `passport-jwt`, `bcrypt` | F06.4 | Phổ biến, dễ giải thích |
+| Auth | `@nestjs/jwt` + guard tự viết, `bcryptjs`, refresh token xoay vòng trong cookie httpOnly | F06.4 | Không cần Passport cho 1 chiến lược JWT; bcryptjs không cần biên dịch native trong Docker |
 | Validation | `class-validator`, `class-transformer` | Kiểm tra input | Chuẩn NestJS `ValidationPipe` |
-| AI | LLM SDK (mặc định Anthropic Claude) sau **adapter interface** + `MockLlmAdapter` | F01 | Tool calling chuẩn; adapter cho phép đổi nhà cung cấp / test không tốn tiền (TD-07) |
+| AI | `@anthropic-ai/sdk` (Claude `claude-opus-5-5`) sau **interface `LlmProvider`** + `MockLlmProvider` có nhãn | F01 | Tool use + structured output chính thức; Mock để test/CI không tốn tiền, không giả làm AI thật (TD-07) |
 | Email | `nodemailer` + **Mailpit** (local/demo) | F05 | Mailpit có giao diện web xem email → dễ demo "đúng 1 email/đơn" |
 | Frontend | React 18 + Vite + TypeScript | UI web | PRD |
 | UI kit | **Mantine 7** | Component, form, notification, responsive | Bộ component đầy đủ, ít code tự viết (TD-09) |
-| Data fetching | TanStack Query + axios | Gọi API, loading/error state | Cache phía client, retry, trạng thái loading chuẩn |
+| Data fetching | TanStack Query + axios + React Router | Gọi API, loading/error state, điều hướng | Cache phía client, retry; access token chỉ trong bộ nhớ, tự refresh khi 401 |
 | Reverse proxy | Nginx | TLS, static, proxy, WebSocket upgrade, blue/green switch | PRD/SRS |
 | Container | Docker multi-stage + Docker Compose | Đóng gói | SRS bắt buộc |
 | CI/CD | GitHub Actions | Kiểm thử, build, deploy | SRS/PRD |
 | Registry | Amazon ECR | Lưu image theo SHA | Cùng AWS, pull bằng instance role không cần mật khẩu |
 | Hạ tầng | AWS EC2 (+ S3, IAM, SSM) | Chạy hệ thống | SRS bắt buộc |
-| Kiểm thử | Jest + Supertest | Unit / integration | PRD; mặc định của NestJS |
+| Kiểm thử | Jest + Supertest + socket.io-client; Chrome headless (playwright-core) cho smoke UI; gitleaks | Unit / integration / UI / secret | PRD; mặc định của NestJS |
 | Đo hiệu năng | k6 (chạy bằng Docker) | Đo p95 | Báo cáo p95 trực tiếp; không cần cài |
 
-## 4. Cấu trúc thư mục dự kiến
+## 4. Cấu trúc thư mục (thực tế)
 
 ```
 shopfast/
@@ -123,18 +125,22 @@ shopfast/
 │   │   ├── catalog/            products, categories, brands
 │   │   ├── inventory/
 │   │   ├── cart/  orders/  promotions/
-│   │   ├── support/            tickets, messages, pending actions
-│   │   ├── ai/                 llm adapters, tools, agent loop, guardrails
-│   │   ├── realtime/           orders.gateway.ts
+│   │   ├── support/            tickets, assistant (vòng lặp agent), tools, guardrails, pending actions
+│   │   │   └── ai/             LlmProvider: anthropic.provider, mock.provider, keyword-classifier
+│   │   ├── realtime/           orders.gateway.ts, redis-io.adapter, order-events.publisher
 │   │   ├── cache/              CacheService, metrics
 │   │   ├── rate-limit/
-│   │   ├── jobs/               queues, processors, schedulers
-│   │   ├── health/  admin/
+│   │   ├── jobs/               queues, processors, schedulers, outbox, admin API (hàng đợi, dead letter)
+│   │   ├── mail/               mailer, email idempotent
+│   │   ├── health/  swagger.ts
 │   └── test/                   integration tests (*.e2e-spec.ts)
 ├── frontend/
-│   └── src/  pages/ components/ api/ hooks/ realtime/ auth/
+│   └── src/  pages/{public,customer,staff,admin} components/ api/ auth/ realtime/ lib/
 ├── infra/
-│   ├── nginx/  deploy/  backup/  aws/ (IAM policy JSON)
+│   ├── nginx/    templates (http-only / https), select-mode.sh
+│   ├── deploy/   deploy.sh, rollback.sh, rehearsal.sh, remote-deploy.sh, fetch-env.sh
+│   ├── backup/   backup.sh, verify.sh, restore.sh, drill.sh
+│   └── aws/      IAM policy, trust policy, S3 lifecycle / bucket policy (JSON)
 ├── perf/                       kịch bản k6
 ├── docs/
 ├── docker-compose.yml          dev
@@ -152,7 +158,7 @@ Service     ── logic nghiệp vụ (kiểm tra tồn kho, máy trạng thái
 Repository  ── truy vấn Prisma; là nơi DUY NHẤT gọi PrismaClient
 ```
 
-Tầng AI (`ai/tools/*`) cũng gọi **Service**, không gọi Repository/Prisma → AI dùng đúng quy tắc
+Tầng AI (`support/support-tools.ts`) cũng gọi **Service**, không gọi Repository/Prisma → AI dùng đúng quy tắc
 nghiệp vụ và phân quyền như API thường.
 
 ## 5. Sơ đồ luồng dữ liệu (Data Flow)
@@ -249,3 +255,14 @@ sequenceDiagram
 | LLM API | Phân loại ticket dùng bộ từ khoá dự phòng; trợ lý AI trả thông báo "Trợ lý AI tạm thời không khả dụng", nhân viên vẫn xử lý ticket thủ công |
 | SMTP | Job email retry + backoff, hết lượt → `failed_jobs`; admin chạy lại |
 | PostgreSQL | Không thể phục vụ nghiệp vụ → `/health/ready` 503 → deploy không chuyển traffic sang bản mới; quy trình khôi phục ở `backup-recovery-report.md` |
+
+## 7. So với thiết kế Phase 0 (đã thay đổi khi hiện thực)
+
+| Hạng mục | Thiết kế Phase 0 | Thực tế | Lý do |
+|---|---|---|---|
+| Rate limit | `@nestjs/throttler` + storage Redis | Guard tự viết + Redis (Lua) | Throttler đếm theo từng route; SRS cần hạn mức chung + riêng theo tài khoản (TD-06 sửa đổi) |
+| Xác thực | `passport-jwt`, `bcrypt` | Guard JWT tự viết, `bcryptjs` | Chỉ có 1 chiến lược JWT nên Passport không cần thiết; bcryptjs không cần biên dịch native |
+| AI | "LLM SDK, mặc định Claude" | `@anthropic-ai/sdk`, `claude-opus-5-5`, `fallbacks: "default"`, Mock có nhãn | Chốt cụ thể khi hiện thực (TD-07) |
+
+Các phần còn lại (blue/green, `/health/ready`, Mailpit, OIDC, SSM, S3) được hiện thực đúng như thiết kế,
+bổ sung chi tiết ở [deployment-guide.md](deployment-guide.md) và [backup-recovery-report.md](backup-recovery-report.md).
