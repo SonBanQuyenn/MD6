@@ -21,7 +21,6 @@ describe('Support tickets & AI assistant (integration)', () => {
   let customer: string;
   let otherCustomer: string;
   let agent: string;
-  let customerId: string;
   let orderId: string;
   let orderCode: string;
 
@@ -35,7 +34,6 @@ describe('Support tickets & AI assistant (integration)', () => {
     const c = await createUser(prisma, Role.CUSTOMER, 'kh@example.com');
     const o = await createUser(prisma, Role.CUSTOMER, 'khac@example.com');
     const a = await createUser(prisma, Role.SUPPORT_AGENT, 'cs@example.com');
-    customerId = c.id;
     customer = (await loginAs(app, c.email)).accessToken;
     otherCustomer = (await loginAs(app, o.email)).accessToken;
     agent = (await loginAs(app, a.email)).accessToken;
