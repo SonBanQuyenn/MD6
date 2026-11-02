@@ -108,7 +108,7 @@ curl -c jar -H 'Content-Type: application/json' \
 # → { "accessToken": "eyJ…", "user": { … } }
 
 # Đặt đơn (giỏ hàng đã có sản phẩm)
-curl -H "Authorization: Bearer $TOKEN" -H 'Idempotency-Key: 6f1c2a3b-order-1' \
+curl -H "Authorization: Bearer $TOKEN" -H "Idempotency-Key: $(uuidgen)" \
   -H 'Content-Type: application/json' \
   -d '{"paymentMethod":"COD","shippingAddress":{"fullName":"Nguyễn Văn A","phone":"0912345678","addressLine":"1 Lê Lợi","city":"Hà Nội"}}' \
   http://localhost:3000/api/orders
