@@ -1,0 +1,42 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EcrPullOnlyShopFastRepos",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer"
+      ],
+      "Resource": [
+        "arn:aws:ecr:<REGION>:<ACCOUNT_ID>:repository/shopfast-api",
+        "arn:aws:ecr:<REGION>:<ACCOUNT_ID>:repository/shopfast-web"
+      ]
+    },
+    {
+      "Sid": "EcrLogin",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadOwnSecretsOnly",
+      "Effect": "Allow",
+      "Action": "ssm:GetParametersByPath",
+      "Resource": [
+        "arn:aws:ssm:<REGION>:<ACCOUNT_ID>:parameter/shopfast/prod",
+        "arn:aws:ssm:<REGION>:<ACCOUNT_ID>:parameter/shopfast/prod/*"
+      ]
+    },
+    {
+      "Sid": "DecryptSecureStringViaSsmOnly",
+      "Effect": "Allow",
+      "Action": "kms:Decrypt",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": { "kms:ViaService": "ssm.<REGION>.amazonaws.com" }
+      }
+    }
+  ]
+}
