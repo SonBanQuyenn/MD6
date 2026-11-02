@@ -17,5 +17,5 @@ fi
 
 # Lần chạy đầu (chưa deploy lần nào): trỏ upstream tới api-blue
 if [ ! -f /etc/nginx/upstream/active.conf ]; then
-  echo 'upstream api_upstream { server api-blue:3000; keepalive 16; }' > /etc/nginx/upstream/active.conf
+  echo 'upstream api_upstream { zone api_upstream 64k; server api-blue:3000 resolve; keepalive 16; }' > /etc/nginx/upstream/active.conf
 fi

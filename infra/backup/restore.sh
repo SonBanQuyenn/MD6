@@ -54,6 +54,8 @@ compose run --rm migrate >/dev/null
 if [ -n "$ACTIVE" ]; then
   compose up -d --no-deps "api-$ACTIVE" worker >/dev/null
   wait_ready "$ACTIVE"
+  # Container có thể được TẠO LẠI (IP mới) → ghi lại upstream + reload để Nginx phân giải lại
+  point_nginx_to "$ACTIVE"
   public_check_retry || { log "❌ Ứng dụng chưa phản hồi qua Nginx"; exit 1; }
 fi
 
