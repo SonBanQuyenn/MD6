@@ -1,0 +1,132 @@
+# Môi trường PRODUCTION (EC2) — chạy bằng script infra/deploy/deploy.sh, không gọi tay.
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod --env-file deploy-state/release.env …
+#
+# Bảo mật mạng (NFR-SEC-02): CHỈ Nginx mở cổng 80/443. PostgreSQL và Redis KHÔNG có `ports:` →
+# chỉ các container trong mạng nội bộ "backend" kết nối được, Internet không chạm tới.
+# Blue/green (NFR-REL-01): 2 bản API (api-blue, api-green); Nginx chỉ trỏ tới 1 bản tại 1 thời điểm.
+name: shopfast-prod
+
+x-api: &api
+  restart: unless-stopped
+  env_file: .env.prod
+  environment:
+    NODE_ENV: production
+    TRUST_PROXY: '1' # đứng sau đúng 1 proxy (Nginx) → đọc IP thật của khách cho rate limit
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+  networks: [backend]
+  mem_limit: 512m
+  logging: &logging
+    driver: json-file
+    options: { max-size: '10m', max-file: '5' }
+
+services:
+  postgres:
+    image: postgres:16.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # dữ liệu nằm ngoài container → không mất khi deploy
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+    mem_limit: 512m
+    logging: *logging
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    # Mật khẩu + lưu xuống đĩa (job trong hàng đợi không mất khi restart)
+    command: ['sh', '-c', 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+    mem_limit: 256m
+    logging: *logging
+
+  api-blue:
+    <<: *api
+    image: ${API_IMAGE_BLUE:-shopfast-api:local}
+
+  api-green:
+    <<: *api
+    image: ${API_IMAGE_GREEN:-shopfast-api:local}
+
+  worker:
+    <<: *api
+    image: ${WORKER_IMAGE:-shopfast-api:local}
+    command: ['node', 'dist/worker.js']
+    healthcheck:
+      disable: true # worker không mở cổng HTTP
+    stop_grace_period: 30s # cho job đang chạy thời gian làm xong
+
+  # Hộp thư giả lập cho demo (chưa có nhà cung cấp email thật): bắt mọi email, KHÔNG gửi ra ngoài.
+  # Không mở cổng ra Internet; xem thư qua SSH tunnel: ssh -L 8025:localhost:8025 → docker port.
+  mailpit:
+    image: axllent/mailpit:v1.21
+    restart: unless-stopped
+    networks: [backend]
+    mem_limit: 128m
+    logging: *logging
+
+  # Chạy 1 lần mỗi lần deploy, TRƯỚC khi chuyển traffic (migration tương thích ngược — TD-11)
+  migrate:
+    <<: *api
+    image: ${MIGRATE_IMAGE:-shopfast-api:local}
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+    restart: 'no'
+    healthcheck:
+      disable: true
+    profiles: [tools]
+
+  nginx:
+    image: nginx:1.27.3-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN:-}
+    volumes:
+      - ./infra/nginx/templates:/etc/nginx/templates:ro
+      - ./infra/nginx/select-mode.sh:/docker-entrypoint.d/40-select-mode.sh:ro
+      - ./deploy-state/nginx-upstream:/etc/nginx/upstream # deploy.sh đổi blue ↔ green ở đây
+      - ./deploy-state/www:/srv/www:ro # frontend từng phiên bản + symlink "current"
+      - ./deploy-state/certbot/www:/var/www/certbot:ro
+      - ./deploy-state/certbot/conf:/etc/letsencrypt:ro
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1/']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks: [backend]
+    logging: *logging
+
+  # Lấy / gia hạn chứng chỉ Let's Encrypt (chạy tay lần đầu + cron gia hạn — xem deployment-guide)
+  certbot:
+    image: certbot/certbot:v3.0.1
+    volumes:
+      - ./deploy-state/certbot/www:/var/www/certbot
+      - ./deploy-state/certbot/conf:/etc/letsencrypt
+    profiles: [tools]
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  backend:

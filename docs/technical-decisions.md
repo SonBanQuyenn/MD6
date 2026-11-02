@@ -245,6 +245,11 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
   cùng chạy được trong lúc chuyển.
 - **Không SSH từ CI:** GitHub Actions → OIDC → role chỉ có quyền `ecr:Push` + `ssm:SendCommand`
   trên đúng instance tag.
+- **Hiện thực (2026-11-02):** trạng thái deploy (màu đang chạy, image từng màu, bản trước) lưu ở
+  `deploy-state/release.env`; frontend KHÔNG chạy container riêng mà được chép ra
+  `deploy-state/www/<sha>` + symlink `current` → đổi frontend cũng không phải khởi động lại Nginx.
+  Nginx ghi đè `X-Forwarded-For = $remote_addr` (khách không giả IP được) và API đặt `TRUST_PROXY=1`.
+  Diễn tập tự động trong CI phát hiện & đã sửa 1 lỗi: deploy hỏng để lại image hỏng trong cấu hình.
 - **Đánh đổi:** 1 EC2 = 1 điểm lỗi đơn (single point of failure). Ghi rõ là giới hạn; hướng nâng cấp
   là ALB + Auto Scaling Group + RDS + ElastiCache.
 

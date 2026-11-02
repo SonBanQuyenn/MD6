@@ -132,3 +132,33 @@ jobs:
         run: npm run format:check
       - name: Type check + build
         run: npm run build
+
+  # Diễn tập deploy blue/green trên runner (không cần AWS): build image thật → deploy v1 →
+  # deploy v2 dưới tải (đếm request lỗi) → deploy image hỏng (phải bị chặn) → rollback (đo thời gian).
+  deploy-rehearsal:
+    name: deploy-rehearsal
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: |
+          docker build -q -t local/shopfast-api:v1 backend
+          docker build -q -t local/shopfast-web:v1 frontend
+          docker tag local/shopfast-api:v1 local/shopfast-api:v2
+          docker tag local/shopfast-web:v1 local/shopfast-web:v2
+      - name: Tạo .env.prod với secret ngẫu nhiên (chỉ tồn tại trong lần chạy này)
+        run: |
+          PG=$(openssl rand -hex 16)
+          RD=$(openssl rand -hex 16)
+          JWT=$(openssl rand -hex 32)
+          sed -e "s/change-me-postgres/$PG/g" \
+              -e "s/change-me-redis/$RD/g" \
+              -e "s/change-me-to-a-long-random-string-at-least-32-chars/$JWT/" \
+              -e "s/COOKIE_SECURE=true/COOKIE_SECURE=false/" \
+              .env.prod.example > .env.prod
+      - name: Rehearsal
+        run: bash infra/deploy/rehearsal.sh
+      - name: Báo cáo
+        if: always()
+        run: cat deploy-state/rehearsal-report.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+

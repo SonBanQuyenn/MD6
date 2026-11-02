@@ -13,6 +13,10 @@ coverage/
 .env
 .env.*
 !.env.example
+!.env.prod.example
+
+# Trạng thái deploy trên server (frontend từng phiên bản, upstream, chứng chỉ)
+deploy-state/
 *.pem
 *.key
 
@@ -30,3 +34,4 @@ Thumbs.db
 
 # Local-only notes
 PRD.md
+dist-seed/
