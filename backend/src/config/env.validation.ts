@@ -34,6 +34,9 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.boolean().default(false),
   }),
 
+  // Tài liệu API tại /api/docs (F07.3)
+  SWAGGER_ENABLED: Joi.boolean().default(true),
+
   // ---------- Rate limit (F03) ----------
   // Hạn mức chung cho mọi API: số request / phút / định danh (tài khoản hoặc IP).
   RATE_LIMIT_GLOBAL_PER_MINUTE: Joi.number().integer().min(1).default(100),

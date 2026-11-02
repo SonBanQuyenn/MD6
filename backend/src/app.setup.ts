@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as cookieParser from 'cookie-parser';
 import { RedisIoAdapter } from './realtime/redis-io.adapter';
+import { setupSwagger } from './swagger';
 
 /**
  * Cấu hình chung cho ứng dụng. Dùng ở main.ts VÀ trong integration test
@@ -34,6 +35,11 @@ export function configureApp(app: INestApplication): INestApplication {
       transform: true, // chuyển "1" → 1 theo kiểu khai báo trong DTO
     }),
   );
+
+  // Tài liệu API (F07.3). Tắt được bằng SWAGGER_ENABLED=false nếu không muốn công khai.
+  if (app.get(ConfigService).get<boolean>('SWAGGER_ENABLED', true)) {
+    setupSwagger(app);
+  }
 
   // Nhận SIGTERM (docker stop) → đóng kết nối DB/Redis gọn gàng.
   app.enableShutdownHooks();
