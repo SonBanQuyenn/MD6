@@ -33,7 +33,8 @@ export function calculateOrderTotals(
   if (rule) {
     discount = Math.floor((subtotal * rule.discountPercent) / 100);
     if (rule.maxDiscount !== null) {
-      discount = Math.min(discount, rule.maxDiscount);
+      // [DEMO LỖI CỐ Ý] quên giới hạn giảm giá tối đa — CI phải bắt được
+      discount = Math.max(discount, rule.maxDiscount);
     }
   }
   return { subtotal, discount, total: subtotal - discount };
