@@ -1,0 +1,3 @@
+# Phát hiện của gitleaks đã kiểm tra là KHÔNG phải secret (fingerprint chính xác, không bỏ qua cả file).
+# Ví dụ Idempotency-Key trong tài liệu API (commit cũ, đã đổi sang $(uuidgen) ở commit sau).
+9d5bba9d27f14ab01b0925ed7bb3f28d6e2a2346:docs/api-documentation.md:generic-api-key:111
