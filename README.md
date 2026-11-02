@@ -220,6 +220,8 @@ giao diện chỉ để trải nghiệm; quyền thật do backend kiểm tra.
   Redis, Mailpit — DB / Redis **không** mở cổng.
 - Deploy blue/green: `infra/deploy/deploy.sh <sha>`, quay lui: `infra/deploy/rollback.sh`,
   diễn tập đầy đủ: `infra/deploy/rehearsal.sh` (chạy tự động trong CI).
+- Sao lưu / khôi phục PostgreSQL: `infra/backup/` (backup, verify, restore, drill) — biên bản
+  [docs/backup-recovery-report.md](docs/backup-recovery-report.md).
 - CD lên AWS (`.github/workflows/cd.yml`) đang **tắt** tới khi có hạ tầng — xem
   [docs/deployment-guide.md](docs/deployment-guide.md).
 

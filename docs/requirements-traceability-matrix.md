@@ -39,7 +39,7 @@ Chú thích trạng thái: ⬜ Chưa làm · 🟨 Đang làm · ✅ Xong & đã 
 | F07.1 | Health DB + Redis | `health/` terminus: `/api/health` (DB + Redis), `/api/health/ready` (DB — dùng khi deploy), `/api/health/live` (tiến trình); không bị rate limit | Integration `health.e2e-spec.ts`: 3 endpoint 200, không có header rate limit | P1 → P10 · `feature/monitoring` | ✅ |
 | F07.2 | Dashboard hàng đợi | API `GET /api/admin/queues` + giao diện `/admin` (ô số liệu, bảng chờ / hẹn giờ / đang chạy / xong / lỗi, tự làm mới 5 s) và `/admin/queues` (dead letter + chạy lại) | Integration `jobs.e2e-spec`; smoke UI bằng Chrome headless (trang hiển thị đủ 5 hàng đợi) | P8 (API) → P9 (UI) · `feature/frontend` | ✅ |
 | F07.3 | Swagger tự sinh | `src/swagger.ts` + plugin `@nestjs/swagger` trong `nest-cli.json` (schema từ DTO + class-validator + JSDoc); `/api/docs`, `/api/docs-json`; `SWAGGER_ENABLED` | Integration: `/api/docs-json` là OpenAPI 3, có bearer + các đường dẫn chính; `/api/docs` trả Swagger UI | P10 · `feature/monitoring` | ✅ |
-| F07.4 | Backup hằng ngày, tách biệt | `infra/backup/backup.sh`, cron, S3 | Diễn tập khôi phục thật (biên bản) | P14 · `feature/backup-recovery` | ⬜ |
+| F07.4 | Backup hằng ngày, tách biệt | `infra/backup/backup.sh` (pg_dump + sha256 → S3), cron 02:00 VN, `verify.sh` sau mỗi lần; S3 versioning + lifecycle 35 ngày (`infra/aws/`) | Diễn tập thật: sao lưu + khôi phục thử khớp 100 % — [backup-recovery-report](backup-recovery-report.md). Phần S3 chưa chạy (chờ AWS) | P14 · `feature/backup-recovery` | 🟨 |
 
 ## Yêu cầu phi chức năng
 
@@ -61,7 +61,7 @@ Chú thích trạng thái: ⬜ Chưa làm · 🟨 Đang làm · ✅ Xong & đã 
 | NFR-SEC-05 | IAM least privilege, group, MFA | Tài liệu + policy JSON | `deployment-guide.md` | P13 | ⬜ |
 | NFR-REL-01 | Deploy không gián đoạn | Blue/green `infra/deploy/deploy.sh` + `nginx -s reload` | Diễn tập: gọi liên tục qua Nginx trong lúc deploy → **228 / 243 request, 0 lỗi** — [deployment-guide](deployment-guide.md) | P12 | ✅ |
 | NFR-REL-02 | Health check sau deploy, rollback < 2' | `deploy.sh` (health check trước + sau chuyển traffic, tự quay lui), `rollback.sh`, CD `auto-rollback` | Diễn tập: image hỏng bị chặn; rollback **6–7 s** | P12 | ✅ |
-| NFR-REL-03 | Diễn tập khôi phục < 30' | `restore.sh` | Biên bản đo thật | P14 | ⬜ |
+| NFR-REL-03 | Diễn tập khôi phục < 30' | `restore.sh`, `drill.sh` (chạy cả trong CI) | Đo thật: xoá volume DB → khôi phục **9 s**, dữ liệu khớp 100 % (dữ liệu nhỏ — xem đánh giá) | P14 | ✅ |
 | NFR-REL-04 | Suy giảm có kiểm soát | Fallback Redis/AI/email | Test F04.4, F01 fallback | P4, P7, P8 | ⬜ |
 | NFR-QUA-01 | Coverage nghiệp vụ ≥ 60% | `jest.coverageThreshold`: **mỗi** `*.service.ts` ≥ 60 % lines | Đo thật: 26 service gộp 91,2 %, thấp nhất 60 %; toàn bộ 63,1 % — [testing-report](testing-report.md) | P11 · `feature/testing-quality` | ✅ |
 | NFR-QUA-02 | CI chặn merge khi fail | 4 job: secret-scan, backend-quality (lint, format, unit + ngưỡng coverage, build), backend-integration, frontend-quality | Cần bật branch protection (bạn tự bật — xem README); link run bị chặn (D03) | P11, P12 | 🟨 |

@@ -35,7 +35,31 @@
       "Action": "kms:Decrypt",
       "Resource": "*",
       "Condition": {
-        "StringEquals": { "kms:ViaService": "ssm.<REGION>.amazonaws.com" }
+        "StringEquals": {
+          "kms:ViaService": "ssm.<REGION>.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "WriteAndReadBackupsOnly",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::<BACKUP_BUCKET>/postgres/*"
+    },
+    {
+      "Sid": "ListBackupPrefix",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::<BACKUP_BUCKET>",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "postgres/*"
+          ]
+        }
       }
     }
   ]

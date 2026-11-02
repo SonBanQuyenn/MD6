@@ -228,8 +228,14 @@ async function seedCatalog() {
 }
 
 async function main() {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Không chạy seed dữ liệu mẫu trên production.');
+  // Chốt an toàn: production KHÔNG seed, trừ khi chủ động bật cho máy demo / diễn tập khôi phục.
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.ALLOW_DEMO_SEED !== '1'
+  ) {
+    throw new Error(
+      'Không chạy seed dữ liệu mẫu trên production (đặt ALLOW_DEMO_SEED=1 nếu đây là máy demo).',
+    );
   }
   const password = process.env.SEED_PASSWORD;
   if (!password) {

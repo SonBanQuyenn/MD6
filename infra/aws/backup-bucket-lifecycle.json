@@ -1,0 +1,12 @@
+{
+  "Rules": [
+    {
+      "ID": "shopfast-postgres-retention",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "postgres/" },
+      "Transitions": [{ "Days": 7, "StorageClass": "STANDARD_IA" }],
+      "Expiration": { "Days": 35 },
+      "NoncurrentVersionExpiration": { "NoncurrentDays": 7 }
+    }
+  ]
+}

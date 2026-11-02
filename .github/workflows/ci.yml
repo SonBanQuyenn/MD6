@@ -158,7 +158,12 @@ jobs:
               .env.prod.example > .env.prod
       - name: Rehearsal
         run: bash infra/deploy/rehearsal.sh
+      # Diễn tập khôi phục: sao lưu → xoá volume DB → khôi phục → so sánh dữ liệu + đo RTO (NFR-REL-03)
+      - name: Recovery drill
+        run: bash infra/backup/drill.sh
       - name: Báo cáo
         if: always()
-        run: cat deploy-state/rehearsal-report.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+        run: |
+          cat deploy-state/rehearsal-report.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          cat deploy-state/drill-report.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
 
