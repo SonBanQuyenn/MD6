@@ -3,6 +3,29 @@
 > Mọi số liệu dưới đây là **đo thật**, ghi kèm điều kiện đo. Không suy diễn sang môi trường khác.
 > Số đo trên AWS EC2 (qua Internet, có Nginx + HTTPS) sẽ được bổ sung ở Phase 13.
 
+## Lần đo 2 — Độ trễ cập nhật trạng thái qua realtime (F02, NFR-PERF-03)
+
+**Ngày đo:** 2026-11-02 · **Nhánh:** `feature/realtime-tracking`
+
+**Cách đo:** trong integration test [`realtime.e2e-spec.ts`](../backend/test/realtime.e2e-spec.ts) —
+khách kết nối Socket.IO thật (transport websocket) và đăng ký theo dõi đơn; nhân viên kho gửi
+`PATCH /api/orders/:id/status` lần lượt CONFIRMED → PACKING → SHIPPING → DELIVERED. Thời gian tính từ
+lúc **bắt đầu gửi PATCH** tới lúc **client nhận sự kiện** `order:status`, tức đã gồm cả kiểm tra máy
+trạng thái, transaction ghi DB và phát qua Redis adapter.
+
+**Môi trường:** máy phát triển Windows 11, PostgreSQL 16 + Redis 7 trong Docker Desktop, cùng máy.
+
+| Lần chuyển | Độ trễ |
+|---|---|
+| PENDING → CONFIRMED | 37,2 ms |
+| CONFIRMED → PACKING | 23,1 ms |
+| PACKING → SHIPPING | 17,6 ms |
+| SHIPPING → DELIVERED | 15,4 ms |
+
+**Kết luận trung thực:** tối đa 37 ms, thấp hơn nhiều so với ngưỡng 1 giây, nhưng đây là số đo **cục
+bộ**, chỉ có 4 mẫu. Trên EC2, người dùng sẽ cộng thêm độ trễ mạng (thường 20–80 ms trong nước), vẫn
+dư nhiều so với ngưỡng. Sẽ đo lại trên môi trường thật ở Phase 13.
+
 ## Lần đo 1 — API tra cứu sản phẩm có cache (F04, NFR-PERF-01, NFR-PERF-04)
 
 **Ngày đo:** 2026-11-01 · **Nhánh:** `feature/redis-caching`
