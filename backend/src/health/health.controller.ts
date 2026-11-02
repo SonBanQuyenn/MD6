@@ -5,11 +5,15 @@ import {
   PrismaHealthIndicator,
 } from '@nestjs/terminus';
 import { Public } from '../common/decorators/public.decorator';
+import { SkipRateLimit } from '../rate-limit/rate-limit.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisHealthIndicator } from './redis.health';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Health — giám sát')
 @Controller('health')
 @Public()
+@SkipRateLimit()
 export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
@@ -28,6 +32,19 @@ export class HealthController {
     return this.health.check([
       () => this.prismaHealth.pingCheck('database', this.prisma),
       () => this.redisHealth.pingCheck('redis'),
+    ]);
+  }
+
+  /**
+   * GET /api/health/ready — bản API có sẵn sàng nhận khách chưa (dùng khi DEPLOY blue/green).
+   * Chỉ bắt buộc PostgreSQL: Redis hỏng thì hệ thống vẫn phục vụ được ở chế độ suy giảm
+   * (cache bỏ qua, rate limit fail-open) — không nên vì vậy mà chặn deploy / rút traffic.
+   */
+  @Get('ready')
+  @HealthCheck()
+  ready() {
+    return this.health.check([
+      () => this.prismaHealth.pingCheck('database', this.prisma),
     ]);
   }
 

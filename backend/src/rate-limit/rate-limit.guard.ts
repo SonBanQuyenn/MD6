@@ -11,7 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Request, Response } from 'express';
 import { extractBearerToken } from '../common/guards/jwt-auth.guard';
 import { AccessTokenPayload, AuthUser } from '../common/types/auth-user';
-import { RATE_LIMIT_KEY } from './rate-limit.decorator';
+import { RATE_LIMIT_KEY, SKIP_RATE_LIMIT_KEY } from './rate-limit.decorator';
 import {
   formatMessage,
   PolicyName,
@@ -55,6 +55,11 @@ export class RateLimitGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // WebSocket có cơ chế xác thực riêng ở handshake — guard này chỉ dành cho HTTP.
     if (context.getType() !== 'http') return true;
+    const skip = this.reflector.getAllAndOverride<boolean>(
+      SKIP_RATE_LIMIT_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    if (skip) return true;
 
     const req = context.switchToHttp().getRequest<Request>();
     const res = context.switchToHttp().getResponse<Response>();
