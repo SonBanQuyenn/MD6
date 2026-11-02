@@ -72,6 +72,9 @@ Mật khẩu của cả 4 tài khoản là giá trị `SEED_PASSWORD` trong `.en
 | `POST /api/auth/login` | Công khai | Trả `accessToken` (15 phút) + đặt cookie `sf_refresh` (httpOnly, 7 ngày) |
 | `POST /api/auth/refresh` | Cookie `sf_refresh` | Đổi refresh token cũ lấy cặp token mới (xoay vòng) |
 | `POST /api/auth/logout` | Cookie `sf_refresh` | Thu hồi refresh token, xoá cookie |
+| `POST /api/auth/verification-code` | Công khai | `{ email, purpose: VERIFY_EMAIL \| RESET_PASSWORD }` → gửi mã 6 số qua email (luôn trả 202, không lộ email có tồn tại không) |
+| `POST /api/auth/verify-email` | Công khai | `{ email, code }` → xác minh email |
+| `POST /api/auth/reset-password` | Công khai | `{ email, code, newPassword }` → đặt lại mật khẩu, đăng xuất mọi thiết bị |
 | `GET /api/users/me` | Đã đăng nhập | Thông tin tài khoản hiện tại |
 | `GET /api/users` | ADMIN | Danh sách người dùng, `?page&limit&role` |
 | `PATCH /api/users/:id/role` | ADMIN | Đổi vai trò |
@@ -108,6 +111,19 @@ Gửi access token qua header: `Authorization: Bearer <accessToken>`.
 | `POST /api/inventory/adjustments` | WAREHOUSE_STAFF, ADMIN | Nhập (`delta > 0`) / xuất (`delta < 0`) kho |
 | `GET /api/inventory/low-stock` · `GET /api/inventory/products/:id/movements` | WAREHOUSE_STAFF, ADMIN | Sắp hết hàng · lịch sử biến động |
 | `GET/POST /api/promotions` | ADMIN | Quản lý mã khuyến mãi |
+
+### Rate limit (F03)
+
+| Phạm vi | Hạn mức | Đếm theo |
+|---|---|---|
+| Mọi API | 100 request / phút (`RATE_LIMIT_GLOBAL_PER_MINUTE`) | tài khoản nếu có token hợp lệ, ngược lại IP |
+| `POST /api/auth/login` | 5 / phút | IP |
+| `POST /api/auth/verification-code`, `verify-email`, `reset-password` | 3 / 15 phút | tài khoản / IP |
+| `POST /api/orders/promotional` | 3 / phút | tài khoản |
+| Dò mật khẩu | sai 5 lần → khoá 1', 10 → 15', từ 15 → 60' | **email mục tiêu** (đổi IP không lách được) |
+
+Vượt hạn mức → **429** + header `Retry-After` + body `{ message: "…thử lại sau N giây.", retryAfter: N }`.
+Mọi phản hồi có `X-RateLimit-Limit` / `X-RateLimit-Remaining`. Sau Nginx đặt `TRUST_PROXY=1` để lấy IP thật.
 
 ### Cache Redis
 
