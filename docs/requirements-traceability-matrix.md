@@ -57,14 +57,14 @@ Chú thích trạng thái: ⬜ Chưa làm · 🟨 Đang làm · ✅ Xong & đã 
 | NFR-SEC-01 | HTTPS + redirect | Nginx + certbot | `curl -I http://...` → 301 | P13 | ⬜ |
 | NFR-SEC-02 | SG tối thiểu, DB/Redis không public | SG + compose prod | Ảnh chụp SG, `nmap` từ ngoài | P13 | ⬜ |
 | NFR-SEC-03 | Không khoá dài hạn | OIDC + Instance Role | Workflow dùng `aws-actions/configure-aws-credentials` với `role-to-assume` | P12, P13 | ⬜ |
-| NFR-SEC-04 | Không secret trong code / Dockerfile / pipeline | `.env.example`, GitHub Secrets, gitleaks | CI job gitleaks xanh | P1, P11 | ⬜ |
+| NFR-SEC-04 | Không secret trong code / Dockerfile / pipeline | `.env.example`, GitHub Secrets, job `secret-scan` (gitleaks, `.gitleaks.toml`) | gitleaks quét 88 commit: không có secret (4 chuỗi giả trong file test được allowlist theo đường dẫn) | P1, P11 | ✅ |
 | NFR-SEC-05 | IAM least privilege, group, MFA | Tài liệu + policy JSON | `deployment-guide.md` | P13 | ⬜ |
 | NFR-REL-01 | Deploy không gián đoạn | Blue-green | Chạy k6 trong lúc deploy → 0 lỗi | P12 | ⬜ |
 | NFR-REL-02 | Health check sau deploy, rollback < 2' | `infra/deploy/deploy.sh` | Lần deploy cố tình hỏng → rollback, đo thời gian | P12 | ⬜ |
 | NFR-REL-03 | Diễn tập khôi phục < 30' | `restore.sh` | Biên bản đo thật | P14 | ⬜ |
 | NFR-REL-04 | Suy giảm có kiểm soát | Fallback Redis/AI/email | Test F04.4, F01 fallback | P4, P7, P8 | ⬜ |
-| NFR-QUA-01 | Coverage nghiệp vụ ≥ 60% | Jest threshold | Coverage report | P11 | ⬜ |
-| NFR-QUA-02 | CI chặn merge khi fail | GitHub Actions + protection | Link run bị chặn (D03) | P11, P12 | ⬜ |
+| NFR-QUA-01 | Coverage nghiệp vụ ≥ 60% | `jest.coverageThreshold`: **mỗi** `*.service.ts` ≥ 60 % lines | Đo thật: 26 service gộp 91,2 %, thấp nhất 60 %; toàn bộ 63,1 % — [testing-report](testing-report.md) | P11 · `feature/testing-quality` | ✅ |
+| NFR-QUA-02 | CI chặn merge khi fail | 4 job: secret-scan, backend-quality (lint, format, unit + ngưỡng coverage, build), backend-integration, frontend-quality | Cần bật branch protection (bạn tự bật — xem README); link run bị chặn (D03) | P11, P12 | 🟨 |
 | NFR-QUA-03 | Image tag theo SHA | Workflow build | Danh sách tag trong registry | P12 | ⬜ |
 
 ## Rubric & Deliverables
