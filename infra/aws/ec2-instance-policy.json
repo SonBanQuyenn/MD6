@@ -1,0 +1,66 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EcrPullOnlyShopFastRepos",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer"
+      ],
+      "Resource": [
+        "arn:aws:ecr:<REGION>:<ACCOUNT_ID>:repository/shopfast-api",
+        "arn:aws:ecr:<REGION>:<ACCOUNT_ID>:repository/shopfast-web"
+      ]
+    },
+    {
+      "Sid": "EcrLogin",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadOwnSecretsOnly",
+      "Effect": "Allow",
+      "Action": "ssm:GetParametersByPath",
+      "Resource": [
+        "arn:aws:ssm:<REGION>:<ACCOUNT_ID>:parameter/shopfast/prod",
+        "arn:aws:ssm:<REGION>:<ACCOUNT_ID>:parameter/shopfast/prod/*"
+      ]
+    },
+    {
+      "Sid": "DecryptSecureStringViaSsmOnly",
+      "Effect": "Allow",
+      "Action": "kms:Decrypt",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "ssm.<REGION>.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "WriteAndReadBackupsOnly",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::<BACKUP_BUCKET>/postgres/*"
+    },
+    {
+      "Sid": "ListBackupPrefix",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::<BACKUP_BUCKET>",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "postgres/*"
+          ]
+        }
+      }
+    }
+  ]
+}

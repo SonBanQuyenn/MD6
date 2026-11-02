@@ -1,0 +1,52 @@
+# Môi trường PHÁT TRIỂN cục bộ: các dịch vụ hạ tầng mà backend cần.
+# Backend và frontend chạy trực tiếp bằng npm (hot reload) — xem README.
+# Cấu hình production (không mở cổng DB/Redis) nằm ở docker-compose.prod.yml (Phase 12).
+name: shopfast
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-shopfast}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopfast_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-shopfast}
+    ports:
+      # Chỉ bind vào 127.0.0.1 → máy khác trong mạng LAN không kết nối được.
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    # appendonly: lưu dữ liệu xuống đĩa → job trong hàng đợi không mất khi restart.
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '127.0.0.1:${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Hộp thư giả lập: bắt mọi email backend gửi, xem tại http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+      - '127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025'
+      - '127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8025/livez']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:

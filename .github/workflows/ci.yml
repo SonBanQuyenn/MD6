@@ -1,0 +1,169 @@
+# CI: chạy cho mọi Pull Request và mỗi lần push vào develop/main.
+# Bất kỳ job nào fail → branch protection chặn merge (yêu cầu NFR-QUA-02).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+# Push liên tiếp lên cùng nhánh → huỷ lần chạy cũ, tiết kiệm thời gian.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # Quét secret trên TOÀN BỘ lịch sử git (NFR-SEC-04). Cấu hình: .gitleaks.toml
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks
+        run: >-
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.21.2
+          detect --source /repo --config /repo/.gitleaks.toml --redact --no-banner -v
+
+  backend-quality:
+    name: backend-quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
+      # Ngưỡng độ phủ nằm trong package.json (jest.coverageThreshold): mỗi file *.service.ts ≥ 60%.
+      # Không đạt → bước này fail → PR bị chặn merge (NFR-QUA-01/02).
+      - name: Unit tests + coverage
+        run: npm run test:cov -- --maxWorkers=2
+      - name: Coverage summary
+        if: always()
+        run: |
+          node -e "const t=require('./coverage/coverage-summary.json').total;
+          const row=k=>'| '+k+' | '+t[k].pct+'% ('+t[k].covered+'/'+t[k].total+') |';
+          console.log(['### Độ phủ unit test (backend)','| Chỉ số | Độ phủ |','|---|---|',
+          ...['lines','statements','branches','functions'].map(row)].join('\\n'))" >> "$GITHUB_STEP_SUMMARY"
+      - name: Build
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: backend/coverage
+          if-no-files-found: ignore
+
+  backend-integration:
+    name: backend-integration
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    # PostgreSQL và Redis THẬT chạy cạnh job (service containers).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: shopfast
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: shopfast_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U shopfast -d shopfast_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      # Mật khẩu chỉ dùng cho database tạm thời trong CI, bị xoá khi job kết thúc.
+      # test/setup-env.ts đọc các biến TEST_* này; migration chạy trong test/global-setup.ts.
+      TEST_DATABASE_URL: postgresql://shopfast:ci_only_password@localhost:5432/shopfast_test?schema=public
+      TEST_REDIS_URL: redis://localhost:6379/1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Integration tests
+        run: npm run test:e2e
+
+  frontend-quality:
+    name: frontend-quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
+      - name: Type check + build
+        run: npm run build
+
+  # Diễn tập deploy blue/green trên runner (không cần AWS): build image thật → deploy v1 →
+  # deploy v2 dưới tải (đếm request lỗi) → deploy image hỏng (phải bị chặn) → rollback (đo thời gian).
+  deploy-rehearsal:
+    name: deploy-rehearsal
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: |
+          docker build -q -t local/shopfast-api:v1 backend
+          docker build -q -t local/shopfast-web:v1 frontend
+          docker tag local/shopfast-api:v1 local/shopfast-api:v2
+          docker tag local/shopfast-web:v1 local/shopfast-web:v2
+      - name: Tạo .env.prod với secret ngẫu nhiên (chỉ tồn tại trong lần chạy này)
+        run: |
+          PG=$(openssl rand -hex 16)
+          RD=$(openssl rand -hex 16)
+          JWT=$(openssl rand -hex 32)
+          sed -e "s/change-me-postgres/$PG/g" \
+              -e "s/change-me-redis/$RD/g" \
+              -e "s/change-me-to-a-long-random-string-at-least-32-chars/$JWT/" \
+              -e "s/COOKIE_SECURE=true/COOKIE_SECURE=false/" \
+              .env.prod.example > .env.prod
+      - name: Rehearsal
+        run: bash infra/deploy/rehearsal.sh
+      # Diễn tập khôi phục: sao lưu → xoá volume DB → khôi phục → so sánh dữ liệu + đo RTO (NFR-REL-03)
+      - name: Recovery drill
+        run: bash infra/backup/drill.sh
+      - name: Báo cáo
+        if: always()
+        run: |
+          cat deploy-state/rehearsal-report.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          cat deploy-state/drill-report.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
