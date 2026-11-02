@@ -64,6 +64,14 @@ Mật khẩu của cả 4 tài khoản là giá trị `SEED_PASSWORD` trong `.en
 | `warehouse@shopfast.local` | WAREHOUSE_STAFF |
 | `customer@shopfast.local` | CUSTOMER |
 
+### Tài liệu API (Swagger)
+
+Backend đang chạy → mở **http://localhost:3000/api/docs** (OpenAPI JSON: `/api/docs-json`). Đăng nhập,
+bấm **Authorize**, dán `accessToken`. Tắt bằng `SWAGGER_ENABLED=false`.
+
+Health: `GET /api/health` (PostgreSQL + Redis), `GET /api/health/ready` (chỉ PostgreSQL — script deploy
+dùng để quyết định chuyển traffic), `GET /api/health/live` (tiến trình còn sống — Docker healthcheck).
+
 ### API xác thực
 
 | Method & đường dẫn | Quyền | Mô tả |
