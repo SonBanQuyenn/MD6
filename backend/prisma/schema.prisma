@@ -35,6 +35,10 @@ model User {
   statusChanges      OrderStatusHistory[]
   inventoryMovements InventoryMovement[]
   verificationCodes  VerificationCode[]
+  ticketsOpened      Ticket[]             @relation("TicketCustomer")
+  ticketsAssigned    Ticket[]             @relation("TicketAgent")
+  aiToolCalls        AiToolCall[]
+  reviewedActions    AiPendingAction[]
 
   @@map("users")
 }
@@ -219,6 +223,7 @@ model Order {
   user               User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
   promotion          Promotion?           @relation(fields: [promotionId], references: [id], onDelete: Restrict)
   items              OrderItem[]
+  tickets            Ticket[]
   statusHistory      OrderStatusHistory[]
   inventoryMovements InventoryMovement[]
   invoice            Invoice?
@@ -397,4 +402,130 @@ model DailyRevenueReport {
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("daily_revenue_reports")
+}
+
+// ---------------------------------------------------------------------------
+// F01 — Hỗ trợ khách hàng + trợ lý AI
+// ---------------------------------------------------------------------------
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+/// Nhóm nghiệp vụ để phân loại ticket (F01.1)
+enum TicketCategory {
+  ORDER_STATUS
+  SHIPPING
+  PAYMENT
+  RETURN_REFUND
+  PRODUCT_INQUIRY
+  ACCOUNT
+  COMPLAINT
+  OTHER
+}
+
+/// Ai đã phân loại: AI, bộ từ khoá dự phòng (khi AI lỗi) hay nhân viên sửa tay
+enum ClassifiedBy {
+  AI
+  FALLBACK
+  HUMAN
+}
+
+enum MessageAuthor {
+  CUSTOMER
+  AGENT
+  AI
+  SYSTEM
+}
+
+/// Thao tác GHI do AI đề xuất — chỉ thực thi khi con người duyệt (F01.4)
+enum PendingActionStatus {
+  PENDING
+  EXECUTED
+  REJECTED
+  FAILED
+}
+
+model Ticket {
+  id                 String          @id @default(uuid()) @db.Uuid
+  customerId         String          @map("customer_id") @db.Uuid
+  orderId            String?         @map("order_id") @db.Uuid
+  subject            String
+  status             TicketStatus    @default(OPEN)
+  category           TicketCategory?
+  categoryConfidence Float?          @map("category_confidence")
+  classifiedBy       ClassifiedBy?   @map("classified_by")
+  assignedAgentId    String?         @map("assigned_agent_id") @db.Uuid
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  customer       User              @relation("TicketCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  assignedAgent  User?             @relation("TicketAgent", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  order          Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  messages       TicketMessage[]
+  toolCalls      AiToolCall[]
+  pendingActions AiPendingAction[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([customerId, createdAt(sort: Desc)])
+  @@map("tickets")
+}
+
+/// Tin nhắn trong ticket. `internal = true`: hội thoại giữa nhân viên và trợ lý AI — khách KHÔNG thấy.
+model TicketMessage {
+  id         String        @id @default(uuid()) @db.Uuid
+  ticketId   String        @map("ticket_id") @db.Uuid
+  authorType MessageAuthor @map("author_type")
+  authorId   String?       @map("author_id") @db.Uuid
+  content    String
+  internal   Boolean       @default(false)
+  /// AI: nhà cung cấp, model, có phải MOCK không, số vòng tool…
+  metadata   Json?
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
+}
+
+/// Nhật ký mỗi lần AI gọi tool — để nhân viên xem lại dữ liệu thật AI đã dùng (chống bịa).
+model AiToolCall {
+  id            String   @id @default(uuid()) @db.Uuid
+  ticketId      String   @map("ticket_id") @db.Uuid
+  requestedById String   @map("requested_by") @db.Uuid
+  toolName      String   @map("tool_name")
+  input         Json
+  output        Json
+  success       Boolean
+  durationMs    Int      @map("duration_ms")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  ticket      Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  requestedBy User   @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
+  @@map("ai_tool_calls")
+}
+
+model AiPendingAction {
+  id           String              @id @default(uuid()) @db.Uuid
+  ticketId     String              @map("ticket_id") @db.Uuid
+  actionType   String              @map("action_type")
+  payload      Json
+  reason       String
+  status       PendingActionStatus @default(PENDING)
+  result       Json?
+  reviewedById String?             @map("reviewed_by") @db.Uuid
+  reviewedAt   DateTime?           @map("reviewed_at") @db.Timestamptz(3)
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  ticket     Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  reviewedBy User?  @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, status])
+  @@map("ai_pending_actions")
 }
