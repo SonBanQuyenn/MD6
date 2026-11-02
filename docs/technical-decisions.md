@@ -91,7 +91,17 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
 - **Khi sự cố:** client mất kết nối → reconnect với backoff → đăng ký lại → gọi REST lấy trạng thái
   mới nhất (không phụ thuộc việc không bị lỡ sự kiện).
 
-## TD-06 — Rate limit: `@nestjs/throttler` + Redis, tracker tuỳ biến
+## TD-06 — Rate limit: guard tự viết + Redis (sửa đổi 2026-11-02)
+- **Sửa đổi so với kế hoạch ban đầu (`@nestjs/throttler`):** khi hiện thực, throttler sinh khoá đếm
+  theo **từng route** (`Class-handler-name`), nên "100 request/phút cho mỗi người dùng trên TOÀN BỘ API"
+  phải override `generateKey`, `getTracker`, `throwThrottlingException` và viết storage Redis riêng —
+  gần như viết lại. Guard tự viết (~100 dòng: `rate-limit.guard.ts` + `rate-limit.store.ts`) làm đúng
+  2 tầng: hạn mức chung + hạn mức riêng của endpoint, dễ giải thích từng dòng khi bảo vệ.
+- **Thuật toán:** cửa sổ cố định (fixed window) — script Lua `INCR` + `PEXPIRE` chạy nguyên tử trong
+  Redis. Nhược điểm đã biết: dồn request ở ranh giới 2 cửa sổ có thể đạt tối đa 2× hạn mức trong
+  thời gian ngắn; chấp nhận được với mục tiêu chống lạm dụng (không phải tính cước).
+- **Guard chạy trước JwtAuthGuard** và tự kiểm JWT để đếm theo tài khoản → cả request sai token
+  (đang dò token) cũng bị đếm theo IP.
 - **Lý do:** lưu bộ đếm trong Redis để giới hạn đúng khi chạy nhiều instance (bộ nhớ trong process
   sẽ bị nhân đôi hạn mức).
 - **Đề xuất hạn mức ban đầu** (sẽ điều chỉnh sau đo đạc):
@@ -100,7 +110,7 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
   |---|---|
   | Toàn cục | 100 request / 60 giây / định danh |
   | `POST /auth/login` | 5 / 60 giây / IP |
-  | `POST /auth/verification-code` | 3 / 15 phút / định danh |
+  | `POST /auth/verification-code`, `verify-email`, `reset-password` | 3 / 15 phút / định danh |
   | `POST /orders/promotional` | 3 / 60 giây / tài khoản |
 
 - **Dò mật khẩu:** đếm lần sai theo **email mục tiêu** (không theo IP) → kẻ tấn công xoay vòng IP
@@ -109,6 +119,9 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
   khoản). Giảm thiểu: khoá có thời hạn ngắn, không khoá vĩnh viễn, ghi log để admin theo dõi.
   Ghi rõ trong `security-report.md`.
 - **Redis hỏng:** fail-open cho giới hạn chung; đăng nhập có bộ đếm in-memory dự phòng.
+- **IP sau Nginx:** `TRUST_PROXY=1` → Express lấy IP thật từ `X-Forwarded-For` do Nginx ghi. Không bật
+  khi app nhận request trực tiếp, vì khi đó khách tự đặt header này để giả IP.
+- **Mã xác thực (OTP):** chỉ lưu HMAC; job email mang mã gốc nên bị xoá khỏi Redis ngay khi xong.
 
 ## TD-07 — AI: adapter interface, mặc định Claude, có Mock adapter
 - **Trạng thái:** Chấp nhận (2026-10-31) — nhà cung cấp AI là **Anthropic Claude**.

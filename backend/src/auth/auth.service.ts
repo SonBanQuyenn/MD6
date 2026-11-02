@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, Role, User } from '@prisma/client';
+import { LoginAttemptsService } from '../rate-limit/login-attempts.service';
 import { PublicUser, toPublicUser } from '../users/user.mapper';
 import { UsersRepository } from '../users/users.repository';
 import { LoginDto } from './dto/login.dto';
@@ -35,6 +36,7 @@ export class AuthService {
     private readonly refreshTokens: RefreshTokensRepository,
     private readonly passwords: PasswordService,
     private readonly tokens: TokenService,
+    private readonly loginAttempts: LoginAttemptsService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResult> {
@@ -64,6 +66,8 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<AuthResult> {
+    // Tài khoản đang bị khoá do dò mật khẩu → từ chối ngay, KHÔNG kiểm tra mật khẩu (F03.4).
+    await this.loginAttempts.assertNotLocked(dto.email);
     const user = await this.users.findByEmail(dto.email);
 
     // Luôn chạy bcrypt.compare kể cả khi email không tồn tại, để kẻ tấn công
@@ -72,8 +76,11 @@ export class AuthService {
     const passwordOk = await this.passwords.compare(dto.password, hash);
 
     if (!user || !passwordOk) {
+      // Đếm cả email không tồn tại → phản hồi giống hệt, không lộ email nào đã đăng ký.
+      await this.loginAttempts.recordFailure(dto.email);
       throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
+    await this.loginAttempts.recordSuccess(dto.email);
     if (!user.isActive) {
       throw new ForbiddenException(
         'Tài khoản đã bị khoá, vui lòng liên hệ hỗ trợ',

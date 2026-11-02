@@ -12,8 +12,15 @@ import { CookieOptions, Request, Response } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { AuthResult, AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { RegisterDto } from './dto/register.dto';
+import {
+  RequestVerificationCodeDto,
+  ResetPasswordDto,
+  VerifyEmailDto,
+} from './dto/verification.dto';
 import { TokenService } from './token.service';
+import { VerificationService } from './verification.service';
 
 export const REFRESH_COOKIE = 'sf_refresh';
 
@@ -24,6 +31,7 @@ export class AuthController {
 
   constructor(
     private readonly authService: AuthService,
+    private readonly verification: VerificationService,
     tokens: TokenService,
     config: ConfigService,
   ) {
@@ -45,9 +53,10 @@ export class AuthController {
     return this.respond(res, await this.authService.register(dto));
   }
 
-  /** POST /api/auth/login */
+  /** POST /api/auth/login — tối đa 5 lần / phút / IP + khoá leo thang theo tài khoản (F03). */
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @RateLimit('login')
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
@@ -85,6 +94,34 @@ export class AuthController {
       ...this.cookieOptions,
       maxAge: undefined,
     });
+  }
+
+  /** POST /api/auth/verification-code — gửi mã 6 số qua email (3 lần / 15 phút). */
+  @Post('verification-code')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @RateLimit('verificationCode')
+  requestCode(@Body() dto: RequestVerificationCodeDto) {
+    return this.verification.requestCode(dto.email, dto.purpose);
+  }
+
+  /** POST /api/auth/verify-email — nhập mã để xác minh email. */
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit('verificationCode')
+  verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.verification.verifyEmail(dto.email, dto.code);
+  }
+
+  /** POST /api/auth/reset-password — đặt lại mật khẩu bằng mã. */
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit('verificationCode')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.verification.resetPassword(
+      dto.email,
+      dto.code,
+      dto.newPassword,
+    );
   }
 
   /** Đặt refresh token vào cookie; body chỉ chứa access token + thông tin user. */

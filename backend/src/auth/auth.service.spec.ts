@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, RefreshToken, Role, User } from '@prisma/client';
+import { LoginAttemptsService } from '../rate-limit/login-attempts.service';
 import { UsersRepository } from '../users/users.repository';
 import { AuthService } from './auth.service';
 import { PasswordService } from './password.service';
@@ -55,9 +56,20 @@ describe('AuthService', () => {
       'signAccessToken' | 'issueRefreshToken' | 'hashRefreshToken'
     >
   >;
+  let loginAttempts: jest.Mocked<
+    Pick<
+      LoginAttemptsService,
+      'assertNotLocked' | 'recordFailure' | 'recordSuccess'
+    >
+  >;
   let service: AuthService;
 
   beforeEach(() => {
+    loginAttempts = {
+      assertNotLocked: jest.fn().mockResolvedValue(undefined),
+      recordFailure: jest.fn().mockResolvedValue(undefined),
+      recordSuccess: jest.fn().mockResolvedValue(undefined),
+    };
     users = {
       findByEmail: jest.fn(),
       create: jest.fn(),
@@ -91,6 +103,7 @@ describe('AuthService', () => {
       refreshTokens as unknown as RefreshTokensRepository,
       passwords as unknown as PasswordService,
       tokens as unknown as TokenService,
+      loginAttempts as unknown as LoginAttemptsService,
     );
   });
 

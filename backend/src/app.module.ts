@@ -11,6 +11,7 @@ import { JobsModule } from './jobs/jobs.module';
 import { OrdersModule } from './orders/orders.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PromotionsModule } from './promotions/promotions.module';
+import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './users/users.module';
 
@@ -20,6 +21,7 @@ import { UsersModule } from './users/users.module';
     PrismaModule,
     RedisModule,
     CacheModule,
+    RateLimitModule,
     // API chỉ THÊM job vào hàng đợi; xử lý job nằm ở tiến trình worker (src/worker.ts)
     JobsModule.forRoot('producer'),
     HealthModule,

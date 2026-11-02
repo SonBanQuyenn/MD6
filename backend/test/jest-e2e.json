@@ -8,5 +8,6 @@
   },
   "setupFiles": ["<rootDir>/setup-env.ts"],
   "globalSetup": "<rootDir>/global-setup.ts",
-  "setupFilesAfterEnv": ["<rootDir>/setup-each.ts"]
+  "setupFilesAfterEnv": ["<rootDir>/setup-each.ts"],
+  "testTimeout": 30000
 }

@@ -14,6 +14,7 @@ export const ALL_QUEUES: QueueName[] = Object.values(QUEUES);
 export const JOBS = {
   ORDER_CONFIRMATION: 'order-confirmation',
   PAYMENT_REMINDER: 'payment-reminder',
+  VERIFICATION_CODE: 'verification-code',
   GENERATE_INVOICE: 'generate-invoice',
   SYNC_INVENTORY: 'sync-inventory',
   DAILY_REVENUE_REPORT: 'daily-revenue-report',
@@ -65,6 +66,7 @@ export const QUEUE_JOB_OPTIONS: Record<QueueName, JobsOptions> = {
 export const jobIds = {
   orderConfirmation: (orderId: string) => `order-confirmation-${orderId}`,
   paymentReminder: (orderId: string) => `payment-reminder-${orderId}`,
+  verificationCode: (codeId: string) => `verification-code-${codeId}`,
   invoice: (orderId: string) => `invoice-${orderId}`,
   inventorySync: (orderId: string, event: 'placed' | 'cancelled') =>
     `inventory-sync-${orderId}-${event}`,
@@ -72,6 +74,16 @@ export const jobIds = {
 
 export interface OrderJobData {
   orderId: string;
+}
+
+/**
+ * Job gửi mã xác thực mang theo MÃ GỐC (DB chỉ có HMAC nên worker không tự đọc được).
+ * Vì vậy job này bị xoá khỏi Redis ngay khi xong (xem JobsProducer.verificationCode).
+ */
+export interface VerificationCodeJobData {
+  codeId: string;
+  code: string;
+  purpose: 'VERIFY_EMAIL' | 'RESET_PASSWORD';
 }
 
 export interface InventorySyncJobData {

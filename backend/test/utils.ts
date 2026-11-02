@@ -60,12 +60,22 @@ export async function loginAs(
 ): Promise<{ accessToken: string; refreshCookie: string }> {
   const res = await request(app.getHttpServer())
     .post('/api/auth/login')
+    // Mỗi lần đăng nhập giả lập 1 IP riêng (mỗi khách thật một IP) → không chạm hạn mức
+    // 5 lần / phút / IP của F03 khi test tạo nhiều tài khoản. Test hạn mức: rate-limit.e2e-spec.ts
+    .set('X-Forwarded-For', randomIp())
     .send({ email, password })
     .expect(200);
   return {
     accessToken: res.body.accessToken,
     refreshCookie: getRefreshCookie(res),
   };
+}
+
+let ipCounter = 0;
+/** IP giả lập 10.x.y.z, mỗi lần gọi một IP khác. */
+export function randomIp(): string {
+  ipCounter += 1;
+  return `10.${(ipCounter >> 16) & 255}.${(ipCounter >> 8) & 255}.${ipCounter & 255}`;
 }
 
 /** Lấy cặp "sf_refresh=<giá trị>" từ header Set-Cookie để gửi lại ở request sau. */

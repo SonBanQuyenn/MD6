@@ -8,6 +8,7 @@ import {
   JOBS,
   OrderJobData,
   QUEUES,
+  VerificationCodeJobData,
 } from '../queues';
 import { InventorySyncService } from '../services/inventory-sync.service';
 import { InvoiceService } from '../services/invoice.service';
@@ -30,12 +31,20 @@ export class EmailProcessor extends BaseProcessor {
     super(failedJobs);
   }
 
-  process(job: Job<OrderJobData>) {
+  process(job: Job<OrderJobData | VerificationCodeJobData>) {
     switch (job.name) {
+      case JOBS.VERIFICATION_CODE:
+        return this.notifications.sendVerificationCode(
+          job.data as VerificationCodeJobData,
+        );
       case JOBS.ORDER_CONFIRMATION:
-        return this.notifications.sendOrderConfirmation(job.data.orderId);
+        return this.notifications.sendOrderConfirmation(
+          (job.data as OrderJobData).orderId,
+        );
       case JOBS.PAYMENT_REMINDER:
-        return this.notifications.sendPaymentReminder(job.data.orderId);
+        return this.notifications.sendPaymentReminder(
+          (job.data as OrderJobData).orderId,
+        );
       default:
         throw new UnrecoverableError(`Job email không hỗ trợ: ${job.name}`);
     }

@@ -87,4 +87,12 @@ export class JobDataRepository {
       select: { id: true, email: true },
     });
   }
+
+  /** Mã xác thực + người nhận — dùng cho job gửi mã. */
+  findVerificationCode(id: string) {
+    return this.prisma.verificationCode.findUnique({
+      where: { id },
+      include: { user: { select: { email: true, fullName: true } } },
+    });
+  }
 }

@@ -60,6 +60,24 @@ Vui lòng hoàn tất thanh toán để chúng tôi xử lý đơn sớm nhất.
   };
 }
 
+export function verificationCodeEmail(data: {
+  fullName: string;
+  code: string;
+  purpose: 'VERIFY_EMAIL' | 'RESET_PASSWORD';
+}) {
+  const action =
+    data.purpose === 'VERIFY_EMAIL' ? 'xác minh email' : 'đặt lại mật khẩu';
+  return {
+    subject: `[ShopFast] Mã ${action}: ${data.code}`,
+    html: layout(
+      `Mã ${action} của bạn`,
+      `<p>Xin chào ${escapeHtml(data.fullName)}, mã ${action} của bạn là:</p>
+<p style="font-size:28px;letter-spacing:6px"><b>${escapeHtml(data.code)}</b></p>
+<p>Mã có hiệu lực trong 10 phút. Nếu bạn không yêu cầu, hãy bỏ qua email này.</p>`,
+    ),
+  };
+}
+
 export function dailyRevenueEmail(report: {
   date: string;
   orderCount: number;
