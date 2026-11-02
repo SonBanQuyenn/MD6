@@ -13,4 +13,23 @@ export default defineConfig({
       '/api': { target: 'http://localhost:3000', ws: true },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Tách thư viện ra file riêng: thư viện ít đổi → trình duyệt cache lâu, mỗi lần
+        // deploy chỉ tải lại phần code ứng dụng.
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          data: ['@tanstack/react-query', 'axios', 'socket.io-client'],
+          mantine: [
+            '@mantine/core',
+            '@mantine/hooks',
+            '@mantine/form',
+            '@mantine/notifications',
+          ],
+          icons: ['@tabler/icons-react'],
+        },
+      },
+    },
+  },
 });
