@@ -1,0 +1,15 @@
+# Cấu hình quét secret (gitleaks) — chạy trong CI ở mọi PR (NFR-SEC-04).
+# Dùng toàn bộ bộ luật mặc định của gitleaks; chỉ bỏ qua file TEST, vì test cố ý chứa
+# chuỗi giả trông giống secret (vd JWT secret "test-secret-…" ≥ 32 ký tự để qua validation).
+# Quy ước bắt buộc: file test KHÔNG BAO GIỜ chứa secret thật.
+title = "ShopFast gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Chuỗi giả trong unit / integration test"
+paths = [
+  '''(^|/)backend/src/.*\.spec\.ts$''',
+  '''(^|/)backend/test/.*\.ts$''',
+]
