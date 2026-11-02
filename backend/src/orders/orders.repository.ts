@@ -233,6 +233,13 @@ export class OrdersRepository {
     });
   }
 
+  findByCode(code: string): Promise<OrderDetail | null> {
+    return this.prisma.order.findUnique({
+      where: { code },
+      include: orderDetailInclude,
+    });
+  }
+
   findByIdempotencyKey(
     userId: string,
     idempotencyKey: string,

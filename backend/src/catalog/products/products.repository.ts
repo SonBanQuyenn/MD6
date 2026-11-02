@@ -76,6 +76,13 @@ export class ProductsRepository {
     });
   }
 
+  findBySku(sku: string): Promise<ProductWithRelations | null> {
+    return this.prisma.product.findUnique({
+      where: { sku },
+      include: productInclude,
+    });
+  }
+
   create(
     data: Prisma.ProductUncheckedCreateInput,
   ): Promise<ProductWithRelations> {
