@@ -125,6 +125,19 @@ Gửi access token qua header: `Authorization: Bearer <accessToken>`.
 Vượt hạn mức → **429** + header `Retry-After` + body `{ message: "…thử lại sau N giây.", retryAfter: N }`.
 Mọi phản hồi có `X-RateLimit-Limit` / `X-RateLimit-Remaining`. Sau Nginx đặt `TRUST_PROXY=1` để lấy IP thật.
 
+### Realtime — theo dõi đơn hàng (F02)
+
+Socket.IO tại đường dẫn **`/api/socket.io`** (Nginx / Vite chỉ cần chuyển tiếp `/api`, nhớ bật WebSocket).
+
+```js
+const socket = io({ path: '/api/socket.io', auth: { token: accessToken } }); // sai token → connect_error "UNAUTHORIZED"
+socket.on('connect', () => socket.emitWithAck('order:subscribe', { orderId }));  // → { ok: true, status } | { ok: false, error: 'FORBIDDEN' }
+socket.on('order:status', (e) => console.log(e.status, e.statusLabel));       // { orderId, code, status, statusLabel, paymentStatus, note, at }
+```
+
+Khách chỉ theo dõi được đơn của mình; nhân viên theo dõi được mọi đơn. Frontend dùng hook
+`useOrderTracking` (tự kết nối lại + đăng ký lại + tải lại đơn qua REST sau khi mất mạng).
+
 ### Cache Redis
 
 `GET /api/products`, `GET /api/products/:id`, `GET /api/categories`, `GET /api/brands` được cache

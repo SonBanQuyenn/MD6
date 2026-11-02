@@ -19,6 +19,7 @@ import { toCartView } from '../cart/cart.service';
 import { Paginated } from '../common/dto/pagination-query.dto';
 import { AuthUser } from '../common/types/auth-user';
 import { PromotionsService } from '../promotions/promotions.service';
+import { OrderEventsPublisher } from '../realtime/order-events.publisher';
 import { ListOrdersQueryDto, PlaceOrderDto } from './dto/order.dto';
 import {
   OrderItemUnavailableError,
@@ -53,6 +54,7 @@ export class OrdersService {
     private readonly promotions: PromotionsService,
     private readonly outbox: OutboxDispatcher,
     private readonly invalidator: CatalogCacheInvalidator,
+    private readonly events: OrderEventsPublisher,
   ) {}
 
   /**
@@ -298,7 +300,10 @@ export class OrdersService {
         );
         await this.outbox.dispatchForOrder(order.id);
       }
-      return toOrderView(updated);
+      const view = toOrderView(updated);
+      // Báo NGAY cho khách đang mở trang theo dõi đơn này (F02.1)
+      this.events.statusChanged(view);
+      return view;
     } catch (error) {
       if (error instanceof OrderStatusConflictError) {
         throw new ConflictException(

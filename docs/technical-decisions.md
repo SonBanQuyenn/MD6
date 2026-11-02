@@ -90,6 +90,12 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
   client nối vào instance kia.
 - **Khi sự cố:** client mất kết nối → reconnect với backoff → đăng ký lại → gọi REST lấy trạng thái
   mới nhất (không phụ thuộc việc không bị lỡ sự kiện).
+- **Hiện thực (2026-11-02):** đường dẫn `/api/socket.io`; token gửi trong `handshake.auth` (không dùng
+  cookie) → trang web lạ không mượn được phiên của khách (chống cross-site WebSocket hijacking);
+  `auth` phía client là **hàm** nên mỗi lần kết nối lại đều lấy access token mới nhất.
+  Guard HTTP toàn cục (`JwtAuthGuard`, `RolesGuard`, `RateLimitGuard`) bỏ qua ngữ cảnh WebSocket vì
+  gateway tự xác thực ở handshake. Phát sự kiện nằm SAU khi transaction đổi trạng thái commit — lỗi
+  phát sự kiện được log, không làm hỏng việc đổi trạng thái.
 
 ## TD-06 — Rate limit: guard tự viết + Redis (sửa đổi 2026-11-02)
 - **Sửa đổi so với kế hoạch ban đầu (`@nestjs/throttler`):** khi hiện thực, throttler sinh khoá đếm

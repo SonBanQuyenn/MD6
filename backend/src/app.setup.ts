@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as cookieParser from 'cookie-parser';
+import { RedisIoAdapter } from './realtime/redis-io.adapter';
 
 /**
  * Cấu hình chung cho ứng dụng. Dùng ở main.ts VÀ trong integration test
@@ -16,6 +17,11 @@ export function configureApp(app: INestApplication): INestApplication {
   if (trustProxy > 0) {
     (app as NestExpressApplication).set('trust proxy', trustProxy);
   }
+
+  // Socket.IO dùng Redis adapter → sự kiện realtime tới được client ở mọi instance API (F02, TD-05).
+  app.useWebSocketAdapter(
+    new RedisIoAdapter(app, app.get(ConfigService).getOrThrow('REDIS_URL')),
+  );
 
   // Đọc cookie (refresh token nằm trong cookie httpOnly).
   app.use(cookieParser());
