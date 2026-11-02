@@ -5,9 +5,10 @@ import { EmailService } from '../../mail/email.service';
 import {
   orderConfirmationEmail,
   paymentReminderEmail,
+  verificationCodeEmail,
 } from '../../mail/templates';
 import { JobDataRepository, OrderForJobs } from '../job-data.repository';
-import { jobIds, JOBS } from '../queues';
+import { jobIds, JOBS, VerificationCodeJobData } from '../queues';
 
 export type NotificationResult = 'sent' | 'already-sent' | 'skipped';
 
@@ -49,6 +50,28 @@ export class OrderNotificationsService {
       type: JOBS.PAYMENT_REMINDER,
       orderId,
       to: order.user.email,
+      subject,
+      html,
+    });
+  }
+
+  /** Gửi mã xác thực. Mã đã dùng / hết hạn / bị thay bằng mã mới → bỏ qua, không gửi nữa. */
+  async sendVerificationCode(
+    data: VerificationCodeJobData,
+  ): Promise<NotificationResult> {
+    const record = await this.data.findVerificationCode(data.codeId);
+    if (!record || record.usedAt || record.expiresAt <= new Date()) {
+      return 'skipped';
+    }
+    const { subject, html } = verificationCodeEmail({
+      fullName: record.user.fullName,
+      code: data.code,
+      purpose: data.purpose,
+    });
+    return this.email.sendOnce({
+      dedupeKey: jobIds.verificationCode(data.codeId),
+      type: JOBS.VERIFICATION_CODE,
+      to: record.user.email,
       subject,
       html,
     });

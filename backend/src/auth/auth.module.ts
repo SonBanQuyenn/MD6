@@ -4,11 +4,14 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
+import { VerificationCodesRepository } from './verification-codes.repository';
+import { VerificationService } from './verification.service';
 
 @Module({
   imports: [
@@ -32,7 +35,12 @@ import { TokenService } from './token.service';
     AuthService,
     PasswordService,
     TokenService,
-    // Thứ tự quan trọng: xác thực (bạn là ai?) trước, phân quyền (bạn được làm gì?) sau.
+    VerificationCodesRepository,
+    VerificationService,
+    // Thứ tự quan trọng:
+    //  1. rate limit — chạy ĐẦU TIÊN để cả request sai token / chưa đăng nhập cũng bị đếm (F03)
+    //  2. xác thực (bạn là ai?)  3. phân quyền (bạn được làm gì?)
+    { provide: APP_GUARD, useExisting: RateLimitGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

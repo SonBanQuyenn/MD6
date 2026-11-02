@@ -10,6 +10,7 @@ import {
   OrderJobData,
   QUEUE_JOB_OPTIONS,
   QUEUES,
+  VerificationCodeJobData,
 } from './queues';
 
 /** Đẩy job vào hàng đợi. Chỉ THÊM job — việc xử lý nằm ở tiến trình worker. */
@@ -57,6 +58,19 @@ export class JobsProducer {
       );
     }
     await Promise.all(jobs);
+  }
+
+  /**
+   * Email mã xác thực. Khác các job khác: dữ liệu chứa mã gốc → xoá job ngay khi xong,
+   * job lỗi chỉ giữ 10 phút (bằng thời hạn của mã) rồi xoá.
+   */
+  async verificationCode(data: VerificationCodeJobData): Promise<void> {
+    await this.emailQueue.add(JOBS.VERIFICATION_CODE, data, {
+      ...QUEUE_JOB_OPTIONS[QUEUES.EMAIL],
+      jobId: jobIds.verificationCode(data.codeId),
+      removeOnComplete: true,
+      removeOnFail: { age: 10 * 60 },
+    });
   }
 
   /** Đơn bị huỷ: hàng đã được cộng lại kho → báo cho đối tác. */
