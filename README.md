@@ -195,6 +195,23 @@ lên Redis; tiến trình **worker** xử lý. Demo nhanh: đặt `PAYMENT_REMIN
 
 Dừng hạ tầng: `docker compose down` (thêm `-v` để **xoá luôn dữ liệu**).
 
+## Giao diện web (frontend)
+
+React + Vite + Mantine, responsive (đã kiểm tra ở bề rộng 390 px), sáng / tối. Chạy `npm run dev` trong
+`frontend/` rồi mở http://localhost:5173 (Vite chuyển `/api` và WebSocket sang backend).
+
+| Vai trò | Trang |
+|---|---|
+| Khách vãng lai | Trang chủ, sản phẩm (lọc danh mục / thương hiệu / giá / từ khoá, phân trang), chi tiết, đăng nhập, đăng ký, quên mật khẩu (mã 6 số) |
+| Khách hàng | Giỏ hàng, đặt hàng (Idempotency-Key), lịch sử đơn, **theo dõi đơn realtime**, hoá đơn, gửi & theo dõi yêu cầu hỗ trợ |
+| CSKH | Danh sách ticket (lọc theo nhóm AI phân loại), xử lý ticket + **trợ lý AI** (kết quả tool, duyệt / từ chối đề xuất) |
+| Kho | Quản lý đơn (chuyển trạng thái hợp lệ), tồn kho (sắp hết, nhập / xuất) |
+| Quản trị | Bảng điều khiển (sức khoẻ, cache, hàng đợi, doanh thu), sản phẩm, người dùng, hàng đợi & dead letter, sức khoẻ hệ thống |
+
+Access token chỉ giữ trong bộ nhớ (không `localStorage`); tải lại trang → dùng cookie refresh httpOnly để
+khôi phục phiên (lần đầu chưa có cookie, console sẽ có một request 401 — bình thường). Phân quyền trên
+giao diện chỉ để trải nghiệm; quyền thật do backend kiểm tra.
+
 ## Lệnh thường dùng
 
 | Lệnh (trong `backend/` hoặc `frontend/`) | Tác dụng |
