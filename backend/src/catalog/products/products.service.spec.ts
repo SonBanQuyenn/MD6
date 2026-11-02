@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { CacheService } from '../../cache/cache.service';
+import { CatalogCacheInvalidator } from '../../cache/catalog-cache';
 import { BrandsRepository } from '../brands/brands.repository';
 import { CategoriesRepository } from '../categories/categories.repository';
 import { ProductSort } from './dto/list-products-query.dto';
@@ -69,18 +71,40 @@ describe('buildWhere (bộ lọc sản phẩm)', () => {
 
 describe('ProductsService', () => {
   let products: jest.Mocked<
-    Pick<ProductsRepository, 'findMany' | 'findById' | 'create' | 'update'>
+    Pick<
+      ProductsRepository,
+      'findMany' | 'findById' | 'create' | 'update' | 'findManyByIds'
+    >
   >;
   let categories: jest.Mocked<Pick<CategoriesRepository, 'findById'>>;
   let brands: jest.Mocked<Pick<BrandsRepository, 'findById'>>;
   let service: ProductsService;
+  let invalidator: {
+    invalidateProducts: jest.Mock;
+    invalidateLists: jest.Mock;
+  };
+
+  /** Cache "đi thẳng": luôn MISS, gọi loader — để test logic nghiệp vụ, không test cache. */
+  const passThroughCache = {
+    getOrLoad: jest.fn(
+      async (_key: string, loader: () => Promise<unknown>) => ({
+        value: await loader(),
+        status: 'MISS',
+      }),
+    ),
+    getNumber: jest.fn().mockResolvedValue(0),
+    getMany: jest.fn(async (keys: string[]) => keys.map(() => undefined)),
+    setMany: jest.fn(),
+  };
 
   beforeEach(() => {
+    invalidator = { invalidateProducts: jest.fn(), invalidateLists: jest.fn() };
     products = {
       findMany: jest.fn(),
       findById: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      findManyByIds: jest.fn().mockResolvedValue([product()]),
     };
     categories = { findById: jest.fn().mockResolvedValue({ id: 'c1' }) };
     brands = { findById: jest.fn().mockResolvedValue({ id: 'b1' }) };
@@ -88,6 +112,8 @@ describe('ProductsService', () => {
       products as unknown as ProductsRepository,
       categories as unknown as CategoriesRepository,
       brands as unknown as BrandsRepository,
+      passThroughCache as unknown as CacheService,
+      invalidator as unknown as CatalogCacheInvalidator,
     );
   });
 
@@ -180,7 +206,17 @@ describe('ProductsService', () => {
   });
 
   describe('update', () => {
-    it('đổi giá → tăng version (để làm mới cache ở Phase 7)', async () => {
+    it('đổi giá → làm mới cache chi tiết + danh sách NGAY (khách không thấy giá cũ)', async () => {
+      products.findById.mockResolvedValue(product());
+      products.update.mockResolvedValue(product({ price: 19_000_000 }));
+
+      await service.update('p1', { price: 19_000_000 });
+
+      expect(invalidator.invalidateProducts).toHaveBeenCalledWith(['p1']);
+      expect(invalidator.invalidateLists).toHaveBeenCalled();
+    });
+
+    it('đổi giá → tăng version của sản phẩm', async () => {
       products.findById.mockResolvedValue(product());
       products.update.mockResolvedValue(product({ price: 19_000_000 }));
 

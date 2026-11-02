@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InventoryMovement, InventoryReason } from '@prisma/client';
+import { CatalogCacheInvalidator } from '../cache/catalog-cache';
 import {
   Paginated,
   PaginationQueryDto,
@@ -20,7 +21,10 @@ export interface StockLevel {
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly inventory: InventoryRepository) {}
+  constructor(
+    private readonly inventory: InventoryRepository,
+    private readonly invalidator: CatalogCacheInvalidator,
+  ) {}
 
   async adjust(
     actorId: string,
@@ -40,6 +44,8 @@ export class InventoryService {
       );
     }
     const { product, movement } = result;
+    // Tồn kho đổi → khách phải thấy số mới ngay (F04.2)
+    await this.invalidator.invalidateProducts([product.id]);
     return {
       product: {
         productId: product.id,

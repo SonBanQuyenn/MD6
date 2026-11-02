@@ -7,5 +7,6 @@
     "^.+\\.(t|j)s$": "ts-jest"
   },
   "setupFiles": ["<rootDir>/setup-env.ts"],
-  "globalSetup": "<rootDir>/global-setup.ts"
+  "globalSetup": "<rootDir>/global-setup.ts",
+  "setupFilesAfterEnv": ["<rootDir>/setup-each.ts"]
 }

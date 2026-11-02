@@ -23,6 +23,8 @@ import { REDIS_CLIENT } from './redis.constants';
           enableOfflineQueue: false,
           maxRetriesPerRequest: 1,
           connectTimeout: 2000,
+          // Redis chậm/treo quá 500ms → lệnh báo lỗi, cache bị bỏ qua, đọc thẳng DB (F04.4)
+          commandTimeout: 500,
         });
         client.on('error', (err) => logger.warn(err.message));
         client.on('ready', () => logger.log('Đã kết nối Redis'));

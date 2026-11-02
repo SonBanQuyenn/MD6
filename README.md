@@ -2,7 +2,7 @@
 
 Nền tảng thương mại điện tử (backend NestJS + frontend React) — đồ án Module 06.
 
-> **Trạng thái:** Phase 8 — tác vụ nền (BullMQ). Lộ trình: [docs/development-roadmap.md](docs/development-roadmap.md)
+> **Trạng thái:** Phase 7 — cache Redis (đã xong cả tác vụ nền Phase 8). Lộ trình: [docs/development-roadmap.md](docs/development-roadmap.md)
 
 | Thành phần | Công nghệ |
 |---|---|
@@ -109,6 +109,16 @@ Gửi access token qua header: `Authorization: Bearer <accessToken>`.
 | `GET /api/inventory/low-stock` · `GET /api/inventory/products/:id/movements` | WAREHOUSE_STAFF, ADMIN | Sắp hết hàng · lịch sử biến động |
 | `GET/POST /api/promotions` | ADMIN | Quản lý mã khuyến mãi |
 
+### Cache Redis
+
+`GET /api/products`, `GET /api/products/:id`, `GET /api/categories`, `GET /api/brands` được cache
+(cache-aside). Header **`X-Cache: HIT | MISS | BYPASS`** cho biết kết quả lấy từ đâu (BYPASS = Redis
+lỗi, đọc thẳng DB). Đổi giá / tồn kho → cache được làm mới ngay. Chỉ số: `GET /api/admin/metrics/cache`
+(ADMIN), đặt lại bộ đếm bằng `DELETE`.
+
+Đo hiệu năng (backend đang chạy): `docker run --rm -i -e BASE_URL=http://host.docker.internal:3000 grafana/k6:0.54.0 run - < perf/products-read.js`
+— kết quả: [docs/performance-report.md](docs/performance-report.md).
+
 ### Tác vụ nền (BullMQ) & API quản trị hàng đợi
 
 Đặt đơn **không chờ** gửi email: API ghi sự kiện vào `job_outbox` trong cùng transaction rồi đẩy job
@@ -148,7 +158,8 @@ Dừng hạ tầng: `docker compose down` (thêm `-v` để **xoá luôn dữ li
 ```
 backend/     NestJS API (src/, prisma/, test/)
 frontend/    React + Vite
-docs/        Tài liệu yêu cầu, kiến trúc, CSDL, quyết định kỹ thuật
+docs/        Tài liệu yêu cầu, kiến trúc, CSDL, quyết định kỹ thuật, báo cáo hiệu năng
+perf/        Kịch bản đo tải k6
 .github/     GitHub Actions CI
 ```
 

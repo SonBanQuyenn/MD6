@@ -128,18 +128,32 @@ Trạng thái: *Đề xuất* (chờ bạn duyệt ở Phase 0) · *Chấp nhậ
 - **Khi sự cố:** timeout 20 s, retry 2 lần với backoff; vẫn lỗi → thông báo cho nhân viên, phân
   loại ticket dùng bộ từ khoá dự phòng.
 
-## TD-08 — Cache-aside + version key cho danh sách
-- **Chi tiết:** khoá `product:{id}` (TTL 10' ± jitter), danh sách
-  `products:list:v{N}:{sha1(query chuẩn hoá)}` (TTL 5' ± jitter).
-- **Vì sao version key?** Một sản phẩm đổi giá có thể nằm trong hàng nghìn tổ hợp bộ lọc; không
-  thể tìm & xoá từng khoá (`KEYS *` chặn Redis). Tăng `N` → toàn bộ khoá cũ không bao giờ được
-  đọc nữa và tự hết hạn theo TTL.
-- **Stampede:** khoá `SET lock:{key} NX PX 3000`; người giữ khoá tải DB và ghi cache, người khác
-  chờ ngắn rồi đọc lại; hết thời gian chờ thì đọc DB (không treo request).
-- **Penetration:** ID không đúng định dạng UUID → 400 ngay; ID hợp lệ nhưng không tồn tại → cache
-  giá trị `__NULL__` 60 giây.
-- **Thứ tự:** cập nhật DB → commit → xoá cache (không xoá trước commit, tránh request khác nạp lại
-  giá cũ vào cache).
+## TD-08 — Cache-aside; danh sách chỉ lưu ID; version key
+- **Trạng thái:** Chấp nhận — hiện thực ở Phase 7 (`backend/src/cache`).
+- **Khoá:** `product:<id>` (chi tiết, TTL 10' ± 10%); `products:list:v<N>:<sha1(bộ lọc chuẩn hoá)>`
+  (TTL 5' ± 10%) — **chỉ lưu danh sách id + tổng số**; `catalog:categories:v<N>`, `catalog:brands:v<N>`.
+- **Vì sao danh sách chỉ lưu ID?** Mỗi đơn hàng đổi tồn kho. Nếu danh sách lưu nguyên dữ liệu SP thì
+  mỗi đơn phải xoá MỌI trang danh sách → tỉ lệ hit sụp đổ lúc đông khách. Lưu id → đặt đơn chỉ xoá
+  `product:<id>` của đúng SP đó; trang danh sách tự lấy chi tiết mới qua `MGET`. Chỉ khi **tập kết
+  quả lọc** có thể đổi (đổi giá/danh mục/thương hiệu, ngừng bán, thêm SP) mới tăng `catalog:version`.
+- **Vì sao version key?** Một SP có thể nằm trong hàng nghìn tổ hợp bộ lọc; không thể tìm & xoá
+  từng khoá (`KEYS *` chặn Redis). Tăng N → khoá cũ không bao giờ được đọc nữa, tự hết hạn theo TTL.
+- **Thứ tự:** cập nhật DB → commit → xoá cache. **Xoá 2 lần** (lần 2 sau 1 s) để dọn trường hợp một
+  request đọc DB ngay trước commit rồi ghi giá cũ vào cache sau khi ta đã xoá → giá cũ tồn tại tối đa
+  ~1 s thay vì 10 phút.
+- **Stampede:** `SET lock:<key> <token> NX PX 3000` — 1 request nạp DB, các request khác chờ tối đa
+  1 s (bước 25 ms) rồi đọc lại; quá thời gian thì tự đọc DB (không treo). Khoá giải phóng bằng Lua
+  (chỉ xoá nếu đúng token của mình). TTL ±10% để các khoá không hết hạn đồng loạt.
+- **Penetration:** id sai định dạng UUID → 400 trước khi chạm cache/DB; id hợp lệ nhưng không tồn tại
+  (hoặc ngừng bán) → lưu `__NULL__` 60 s.
+- **Redis hỏng:** client `enableOfflineQueue: false` + `commandTimeout: 500` → lỗi nhanh; mọi lệnh
+  cache bọc try/catch → `BYPASS` (đọc thẳng DB). Đã thử tắt container Redis: API vẫn 200.
+- **Chỉ số:** bộ đếm trong bộ nhớ từng tiến trình (`GET /api/admin/metrics/cache`) + header
+  `X-Cache: HIT|MISS|BYPASS`. Không ghi bộ đếm vào Redis để không thêm 1 lệnh Redis cho mỗi request.
+  Giới hạn: chạy nhiều instance thì mỗi instance có số riêng.
+- **Số đo:** xem [performance-report.md](performance-report.md).
+- **Giới hạn đã biết:** nếu lệnh DEL lỗi (Redis chập chờn) ngay lúc đổi giá, cache cũ có thể tồn tại
+  tới hết TTL (10'). Giảm thiểu: TTL ngắn, log cảnh báo; nâng cấp: ghi sự kiện invalidation vào outbox.
 
 ## TD-09 — Frontend: React + Vite + Mantine + TanStack Query
 - **Mantine 7:** component đầy đủ (bảng, form, modal, notification, AppShell responsive) → giao

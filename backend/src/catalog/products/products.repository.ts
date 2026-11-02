@@ -52,6 +52,23 @@ export class ProductsRepository {
     return { items, total };
   }
 
+  /** Đọc nhiều sản phẩm theo id (dùng khi cache danh sách trúng nhưng thiếu chi tiết). */
+  findManyByIds(ids: string[]): Promise<ProductWithRelations[]> {
+    return this.prisma.product.findMany({
+      where: { id: { in: ids } },
+      include: productInclude,
+    });
+  }
+
+  findIdsByTaxonomy(where: {
+    categoryId?: string;
+    brandId?: string;
+  }): Promise<string[]> {
+    return this.prisma.product
+      .findMany({ where, select: { id: true } })
+      .then((rows) => rows.map((r) => r.id));
+  }
+
   findById(id: string): Promise<ProductWithRelations | null> {
     return this.prisma.product.findUnique({
       where: { id },

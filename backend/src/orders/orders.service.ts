@@ -12,12 +12,12 @@ import {
   Role,
 } from '@prisma/client';
 import { randomBytes } from 'crypto';
+import { CatalogCacheInvalidator } from '../cache/catalog-cache';
 import { CartRepository } from '../cart/cart.repository';
 import { OutboxDispatcher } from '../jobs/outbox.dispatcher';
 import { toCartView } from '../cart/cart.service';
 import { Paginated } from '../common/dto/pagination-query.dto';
 import { AuthUser } from '../common/types/auth-user';
-import { isPrismaError } from '../common/utils/prisma-errors';
 import { PromotionsService } from '../promotions/promotions.service';
 import { ListOrdersQueryDto, PlaceOrderDto } from './dto/order.dto';
 import {
@@ -52,6 +52,7 @@ export class OrdersService {
     private readonly cart: CartRepository,
     private readonly promotions: PromotionsService,
     private readonly outbox: OutboxDispatcher,
+    private readonly invalidator: CatalogCacheInvalidator,
   ) {}
 
   /**
@@ -71,18 +72,20 @@ export class OrdersService {
     }
 
     // Bấm "Đặt hàng" 2 lần / mạng gửi lại request → trả đơn cũ, KHÔNG tạo đơn thứ 2.
-    const existing = await this.orders.findByIdempotencyKey(
-      userId,
-      idempotencyKey,
-    );
-    if (existing) return { order: toOrderView(existing), replayed: true };
+    const existing = await this.replay(userId, idempotencyKey);
+    if (existing) return existing;
 
     const cart = toCartView(await this.cart.findItems(userId));
     if (cart.items.length === 0) {
+      // Request "anh em" cùng key có thể vừa đặt xong và xoá giỏ → trả đơn đó, không báo lỗi.
+      const winner = await this.replay(userId, idempotencyKey);
+      if (winner) return winner;
       throw new BadRequestException('Giỏ hàng đang trống');
     }
     const problem = cart.items.find((line) => !line.available);
     if (problem) {
+      const winner = await this.replay(userId, idempotencyKey);
+      if (winner) return winner;
       throw new ConflictException({
         statusCode: 409,
         code: 'CART_ITEM_UNAVAILABLE',
@@ -123,9 +126,18 @@ export class OrdersService {
       });
       // Đẩy job lên hàng đợi NGAY (email, hoá đơn, đồng bộ kho…) — không chờ chúng chạy xong.
       // Hàng đợi lỗi cũng không sao: dispatcher không ném lỗi, sự kiện vẫn nằm trong outbox.
+      // Tồn kho các sản phẩm vừa bị trừ → làm mới cache để khách khác thấy số mới.
+      await this.invalidator.invalidateProducts(
+        order.items.map((i) => i.productId),
+      );
       await this.outbox.dispatchForOrder(order.id);
       return { order: toOrderView(order), replayed: false };
     } catch (error) {
+      // Bất kỳ lỗi nào: nếu request cùng key đã tạo đơn thành công → trả đơn đó
+      // (vd: request thua vấp UNIQUE, hoặc báo "hết lượt KM" vì chính request thắng vừa dùng).
+      const winner = await this.replay(userId, idempotencyKey);
+      if (winner) return winner;
+
       if (error instanceof OrderItemUnavailableError) {
         throw new ConflictException({
           statusCode: 409,
@@ -142,16 +154,20 @@ export class OrdersService {
             : 'Mã khuyến mãi đã hết lượt hoặc hết hạn',
         );
       }
-      // 2 request cùng Idempotency-Key chạy song song: request thua vấp UNIQUE → trả đơn của request thắng.
-      if (isPrismaError(error, 'P2002')) {
-        const winner = await this.orders.findByIdempotencyKey(
-          userId,
-          idempotencyKey,
-        );
-        if (winner) return { order: toOrderView(winner), replayed: true };
-      }
       throw error;
     }
+  }
+
+  /** Đã có đơn với key này → trả lại đơn đó (replay). */
+  private async replay(
+    userId: string,
+    idempotencyKey: string,
+  ): Promise<PlaceOrderResult | null> {
+    const order = await this.orders.findByIdempotencyKey(
+      userId,
+      idempotencyKey,
+    );
+    return order ? { order: toOrderView(order), replayed: true } : null;
   }
 
   async listMine(
@@ -276,6 +292,10 @@ export class OrdersService {
         extra,
       });
       if (to === OrderStatus.CANCELLED) {
+        // Đã hoàn kho → làm mới cache tồn kho
+        await this.invalidator.invalidateProducts(
+          updated.items.map((i) => i.productId),
+        );
         await this.outbox.dispatchForOrder(order.id);
       }
       return toOrderView(updated);
