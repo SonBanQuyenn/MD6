@@ -9,7 +9,8 @@ export default defineConfig({
     // Trình duyệt chỉ thấy 1 địa chỉ → không cần cấu hình CORS.
     // Production: Nginx làm đúng việc này.
     proxy: {
-      '/api': 'http://localhost:3000',
+      // ws: true → chuyển tiếp cả kết nối WebSocket của Socket.IO (/api/socket.io)
+      '/api': { target: 'http://localhost:3000', ws: true },
     },
   },
 });
