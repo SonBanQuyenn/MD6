@@ -1,7 +1,8 @@
 # Thiết kế cơ sở dữ liệu — ShopFast
 
 > PostgreSQL 16, quản lý schema bằng **Prisma** (migration trong `backend/prisma/migrations`).
-> Trạng thái: **bản thiết kế (Phase 0)** — các bảng sẽ được tạo dần theo từng phase.
+> Trạng thái (2026-11-02): **đã hiện thực** qua 7 migration (`init_users` → `add_support_tickets`).
+> Nguồn chuẩn là `backend/prisma/schema.prisma`; sơ đồ dưới đây là bản thiết kế, khớp tên bảng / cột chính.
 
 ## 1. Quy ước
 

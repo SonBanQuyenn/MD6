@@ -69,14 +69,14 @@ Chú thích trạng thái: ⬜ Chưa làm · 🟨 Đang làm · ✅ Xong & đã 
 
 ## Rubric & Deliverables
 
-| Mã | Nội dung | Phụ thuộc | Trạng thái |
+| Mã | Nội dung | Bằng chứng | Trạng thái |
 |---|---|---|---|
-| R01 / D01 | Chạy thật bằng domain HTTPS | NFR-SEC-01, P13 | ⬜ |
-| R02 / D05 | ≥ 5 chủ đề tích hợp thực chất | F01–F05, F07 | ⬜ |
-| R03 / D03 | Demo deploy tự động + rollback; có run bị chặn | P12 | ⬜ |
-| R04 | Không khoá dài hạn, cổng tối thiểu, backup, giám sát | NFR-SEC-02/03, F07 | ⬜ |
-| R05 / D04 / D06 | Clean code, coverage, tài liệu, biên bản khôi phục | P11, P14, P15 | ⬜ |
-| R06 | Bảo vệ quyết định kỹ thuật | `technical-decisions.md`, `defense-questions.md` | ⬜ |
-| D02 | GitHub + README | P1 | ⬜ |
-| D07 | Slide + kịch bản demo | P15 | ⬜ |
-| D08 | UI web | P9 | ⬜ |
+| R01 / D01 | Chạy thật bằng domain HTTPS | Cấu hình Nginx HTTPS + certbot, CD sẵn sàng — **chưa có AWS / tên miền** | ⬜ |
+| R02 / D05 | ≥ 5 chủ đề tích hợp thực chất | 8 chủ đề — [integration-summary](integration-summary.md) | ✅ |
+| R03 / D03 | Deploy tự động + rollback; có run bị chặn | Diễn tập blue/green + rollback trong CI; PR #15 bị CI chặn thật. Deploy lên AWS chờ P13 | 🟨 |
+| R04 | Không khoá dài hạn, cổng tối thiểu, backup, giám sát | [security-report](security-report.md), [backup-recovery-report](backup-recovery-report.md); phần AWS 📋 | 🟨 |
+| R05 / D04 / D06 | Clean code, coverage, tài liệu, biên bản khôi phục | [testing-report](testing-report.md), [architecture](architecture.md), [backup-recovery-report](backup-recovery-report.md) | ✅ |
+| R06 | Bảo vệ quyết định kỹ thuật | [technical-decisions](technical-decisions.md), [defense-questions](defense-questions.md) (42 câu) | ✅ |
+| D02 | GitHub + README | `README.md` (cài đặt, chạy cục bộ, API, tài liệu) | ✅ |
+| D07 | Slide + kịch bản demo | [demo-script](demo-script.md) ✅ · slide ⬜ | 🟨 |
+| D08 | UI web | P9 — 22 route trang theo vai trò, smoke test Chrome headless 11/11 | ✅ |
