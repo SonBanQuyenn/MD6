@@ -15,7 +15,10 @@ import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateTaxonomyDto, UpdateTaxonomyDto } from '../dto/taxonomy.dto';
 import { BrandsService } from './brands.service';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Thương hiệu')
+@ApiBearerAuth()
 @Controller('brands')
 export class BrandsController {
   constructor(private readonly brandsService: BrandsService) {}

@@ -23,7 +23,10 @@ import {
   UpdateOrderStatusDto,
 } from './dto/order.dto';
 import { PlaceOrderResult, OrdersService } from './orders.service';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Đơn hàng')
+@ApiBearerAuth()
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
