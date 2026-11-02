@@ -29,16 +29,17 @@ describe('Rate limiting (integration)', () => {
 
   it('đăng nhập: request thứ 6 trong 1 phút từ cùng IP → 429 + Retry-After + tiếng Việt', async () => {
     // Mỗi lần dùng 1 email khác → không chạm ngưỡng khoá theo tài khoản, chỉ test hạn mức IP.
-    for (let i = 0; i < 5; i++) {
-      await http()
+    const login = (email: string, ip = '5.5.5.5') =>
+      http()
         .post('/api/auth/login')
-        .send({ email: `khong-co-${i}@example.com`, password: 'Sai12345' })
-        .expect(401);
+        .set('X-Forwarded-For', ip)
+        .send({ email, password: 'Sai12345' });
+    for (let i = 0; i < 5; i++) {
+      await login(`khong-co-${i}@example.com`).expect(401);
     }
-    const res = await http()
-      .post('/api/auth/login')
-      .send({ email: 'khong-co-6@example.com', password: 'Sai12345' })
-      .expect(429);
+    const res = await login('khong-co-6@example.com').expect(429);
+    // IP khác vẫn đăng nhập được → hạn mức tính riêng từng IP.
+    await login('khong-co-7@example.com', '6.6.6.6').expect(401);
 
     expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
     expect(res.body.message).toMatch(/thử đăng nhập quá nhiều lần/);
@@ -54,7 +55,7 @@ describe('Rate limiting (integration)', () => {
     const attempt = (ip: string, password: string) =>
       http()
         .post('/api/auth/login')
-        .set('X-Forwarded-For', ip) // TRUST_PROXY=0 → header này bị bỏ qua; IP vẫn là 127.0.0.1
+        .set('X-Forwarded-For', ip) // test bật TRUST_PROXY=1 → mỗi lần là 1 IP khác
         .send({ email: victim.email, password });
 
     for (let i = 0; i < 4; i++) {
@@ -63,12 +64,8 @@ describe('Rate limiting (integration)', () => {
     const locked = await attempt('9.9.9.9', 'SaiMatKhau1').expect(429);
     expect(locked.body.message).toMatch(/tạm thời bị khoá đăng nhập/);
 
-    // Xoá bộ đếm theo IP để chắc chắn lần chặn tiếp theo đến từ khoá TÀI KHOẢN.
-    const redis = new (await import('ioredis')).default(process.env.REDIS_URL!);
-    for (const key of await redis.keys('rl:*')) await redis.del(key);
-    await redis.quit();
-
-    // Mật khẩu ĐÚNG vẫn bị từ chối khi tài khoản đang bị khoá.
+    // Mỗi IP mới chỉ dùng 1 lần → không chạm hạn mức theo IP. Bị chặn là do khoá TÀI KHOẢN:
+    // kể cả mật khẩu ĐÚNG từ IP mới vẫn bị từ chối khi tài khoản đang bị khoá.
     await attempt('8.8.8.8', 'Matkhau123').expect(429);
   });
 

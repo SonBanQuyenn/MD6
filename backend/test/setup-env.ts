@@ -12,5 +12,8 @@ process.env.REDIS_URL =
 process.env.JWT_ACCESS_SECRET =
   process.env.TEST_JWT_ACCESS_SECRET ??
   'integration-test-only-secret-not-used-anywhere-else';
+// Giống production sau Nginx: đọc IP từ X-Forwarded-For. Nhờ vậy mỗi test tự đặt IP cho từng
+// "khách", không phải mọi request đều chung IP 127.0.0.1 và cùng chạm hạn mức đăng nhập.
+process.env.TRUST_PROXY = '1';
 // bcrypt 4 vòng: test nhanh hơn ~50 lần; production vẫn dùng 12.
 process.env.BCRYPT_ROUNDS = '4';
