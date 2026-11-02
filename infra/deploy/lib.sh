@@ -55,7 +55,8 @@ wait_ready() {
 # Trỏ Nginx tới màu $1 và reload "êm" (kết nối đang mở không bị cắt)
 point_nginx_to() {
   local color="$1"
-  echo "upstream api_upstream { server api-$color:3000; keepalive 16; }" > "$UPSTREAM_FILE.tmp"
+  # resolve + zone: Nginx tự phân giải lại tên container (container tạo lại / restart có thể đổi IP)
+  echo "upstream api_upstream { zone api_upstream 64k; server api-$color:3000 resolve; keepalive 16; }" > "$UPSTREAM_FILE.tmp"
   mv "$UPSTREAM_FILE.tmp" "$UPSTREAM_FILE"
   if compose ps --status running nginx | grep -q nginx; then
     compose exec -T nginx nginx -t >/dev/null 2>&1
