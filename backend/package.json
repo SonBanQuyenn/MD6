@@ -95,7 +95,25 @@
       "!**/*.spec.ts"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "coverageReporters": [
+      "text-summary",
+      "json-summary",
+      "lcov",
+      "html"
+    ],
+    "coverageThreshold": {
+      "./src/**/*.service.ts": {
+        "lines": 60,
+        "statements": 60
+      },
+      "global": {
+        "lines": 40,
+        "statements": 40,
+        "branches": 45,
+        "functions": 25
+      }
+    }
   },
   "engines": {
     "node": ">=20"

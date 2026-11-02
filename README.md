@@ -240,6 +240,15 @@ perf/        Kịch bản đo tải k6
 - Mọi thay đổi vào `develop`/`main` đi qua **Pull Request**, CI phải xanh mới được merge.
 - Commit theo [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `test:`, `docs:`, `ci:`, `build:`, `chore:`…
 
+**Bật chặn merge khi CI đỏ (làm 1 lần, cần quyền admin repo):** GitHub → *Settings → Branches →
+Add branch ruleset* (hoặc *Branch protection rule*) cho `develop` và `main`:
+- *Require a pull request before merging*
+- *Require status checks to pass* → chọn `secret-scan`, `backend-quality`, `backend-integration`,
+  `frontend-quality`
+- *Do not allow bypassing the above settings*
+
+Kiểm thử & độ phủ: xem [docs/testing-report.md](docs/testing-report.md).
+
 ## Tài liệu
 
 - [Phân tích yêu cầu](docs/requirements.md) · [Ma trận truy vết](docs/requirements-traceability-matrix.md)
