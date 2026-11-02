@@ -21,6 +21,7 @@ function makeContext(
     Reflect.defineMetadata(key, value, handler),
   );
   return {
+    getType: () => 'http',
     getHandler: () => handler,
     getClass: () => class {},
     switchToHttp: () => ({ getRequest: () => request }),

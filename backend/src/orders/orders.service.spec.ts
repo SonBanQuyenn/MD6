@@ -16,6 +16,7 @@ import { AuthUser } from '../common/types/auth-user';
 import { CatalogCacheInvalidator } from '../cache/catalog-cache';
 import { OutboxDispatcher } from '../jobs/outbox.dispatcher';
 import { PromotionsService } from '../promotions/promotions.service';
+import { OrderEventsPublisher } from '../realtime/order-events.publisher';
 import {
   OrderItemUnavailableError,
   OrderStatusConflictError,
@@ -106,6 +107,7 @@ describe('OrdersService', () => {
   let cart: jest.Mocked<Pick<CartRepository, 'findItems'>>;
   let promotions: jest.Mocked<Pick<PromotionsService, 'getUsable'>>;
   let outbox: jest.Mocked<Pick<OutboxDispatcher, 'dispatchForOrder'>>;
+  let events: { statusChanged: jest.Mock };
   let service: OrdersService;
 
   beforeEach(() => {
@@ -117,6 +119,7 @@ describe('OrdersService', () => {
       findMany: jest.fn(),
     };
     cart = { findItems: jest.fn().mockResolvedValue([cartItem()]) };
+    events = { statusChanged: jest.fn() };
     promotions = { getUsable: jest.fn() };
     outbox = {
       dispatchForOrder: jest
@@ -129,6 +132,7 @@ describe('OrdersService', () => {
       promotions as unknown as PromotionsService,
       outbox as unknown as OutboxDispatcher,
       { invalidateProducts: jest.fn() } as unknown as CatalogCacheInvalidator,
+      events as unknown as OrderEventsPublisher,
     );
   });
 
@@ -311,6 +315,19 @@ describe('OrdersService', () => {
   });
 
   describe('đổi trạng thái', () => {
+    it('đổi trạng thái thành công → phát sự kiện realtime (F02.1)', async () => {
+      await service.changeStatusByStaff(warehouse, 'o1', OrderStatus.CONFIRMED);
+      expect(events.statusChanged).toHaveBeenCalledTimes(1);
+      expect(events.statusChanged.mock.calls[0][0]).toMatchObject({ id: 'o1' });
+    });
+
+    it('chuyển trạng thái sai luật → KHÔNG phát sự kiện', async () => {
+      await expect(
+        service.changeStatusByStaff(warehouse, 'o1', OrderStatus.DELIVERED),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(events.statusChanged).not.toHaveBeenCalled();
+    });
+
     it('chuyển hợp lệ PENDING → CONFIRMED (COD)', async () => {
       await service.changeStatusByStaff(warehouse, 'o1', OrderStatus.CONFIRMED);
 
