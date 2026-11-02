@@ -28,6 +28,7 @@ export class JobsAdminService {
     @InjectQueue(QUEUES.INVOICE) invoice: Queue,
     @InjectQueue(QUEUES.INVENTORY_SYNC) inventorySync: Queue,
     @InjectQueue(QUEUES.SCHEDULED) scheduled: Queue,
+    @InjectQueue(QUEUES.SUPPORT) support: Queue,
     private readonly failedJobs: FailedJobsRepository,
     private readonly outbox: OutboxRepository,
     private readonly prisma: PrismaService,
@@ -37,6 +38,7 @@ export class JobsAdminService {
       [QUEUES.INVOICE]: invoice,
       [QUEUES.INVENTORY_SYNC]: inventorySync,
       [QUEUES.SCHEDULED]: scheduled,
+      [QUEUES.SUPPORT]: support,
     };
   }
 

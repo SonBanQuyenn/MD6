@@ -6,6 +6,7 @@ export const QUEUES = {
   INVOICE: 'invoice',
   INVENTORY_SYNC: 'inventory-sync',
   SCHEDULED: 'scheduled',
+  SUPPORT: 'support',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
@@ -19,6 +20,7 @@ export const JOBS = {
   SYNC_INVENTORY: 'sync-inventory',
   DAILY_REVENUE_REPORT: 'daily-revenue-report',
   OUTBOX_SWEEP: 'outbox-sweep',
+  CLASSIFY_TICKET: 'classify-ticket',
 } as const;
 
 const DAY = 24 * 60 * 60;
@@ -51,6 +53,13 @@ export const QUEUE_JOB_OPTIONS: Record<QueueName, JobsOptions> = {
     removeOnComplete: { age: 7 * DAY, count: 5_000 },
     removeOnFail: { age: 30 * DAY },
   },
+  // Phân loại ticket: AI lỗi đã có từ khoá dự phòng bên trong → chỉ cần thử lại ít lần
+  [QUEUES.SUPPORT]: {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5_000 },
+    removeOnComplete: { age: 7 * DAY, count: 5_000 },
+    removeOnFail: { age: 30 * DAY },
+  },
   [QUEUES.SCHEDULED]: {
     attempts: 3,
     backoff: { type: 'exponential', delay: 30_000 },
@@ -67,6 +76,7 @@ export const jobIds = {
   orderConfirmation: (orderId: string) => `order-confirmation-${orderId}`,
   paymentReminder: (orderId: string) => `payment-reminder-${orderId}`,
   verificationCode: (codeId: string) => `verification-code-${codeId}`,
+  classifyTicket: (ticketId: string) => `classify-ticket-${ticketId}`,
   invoice: (orderId: string) => `invoice-${orderId}`,
   inventorySync: (orderId: string, event: 'placed' | 'cancelled') =>
     `inventory-sync-${orderId}-${event}`,
@@ -84,6 +94,10 @@ export interface VerificationCodeJobData {
   codeId: string;
   code: string;
   purpose: 'VERIFY_EMAIL' | 'RESET_PASSWORD';
+}
+
+export interface TicketJobData {
+  ticketId: string;
 }
 
 export interface InventorySyncJobData {
