@@ -14,8 +14,11 @@ import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { AuthUser } from '../common/types/auth-user';
 import { AdjustInventoryDto, LowStockQueryDto } from './dto/inventory.dto';
 import { InventoryService } from './inventory.service';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 /** Quản lý tồn kho — chỉ nhân viên kho và quản trị viên. */
+@ApiTags('Tồn kho')
+@ApiBearerAuth()
 @Controller('inventory')
 @Roles(Role.WAREHOUSE_STAFF, Role.ADMIN)
 export class InventoryController {

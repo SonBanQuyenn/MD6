@@ -25,7 +25,10 @@ import {
 } from './dto/support.dto';
 import { PendingActionsService } from './pending-actions.service';
 import { TicketsService } from './tickets.service';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Hỗ trợ & trợ lý AI')
+@ApiBearerAuth()
 @Controller('support')
 export class SupportController {
   constructor(

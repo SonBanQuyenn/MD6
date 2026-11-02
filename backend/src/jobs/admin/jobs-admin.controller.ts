@@ -15,6 +15,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { ALL_QUEUES, QueueName } from '../queues';
 import { JobsAdminService } from './jobs-admin.service';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 class FailedJobsQueryDto extends PaginationQueryDto {
   @IsOptional()
@@ -31,6 +32,8 @@ class TriggerReportDto {
 }
 
 /** Theo dõi & vận hành hàng đợi — chỉ ADMIN (F05, F07.2). */
+@ApiTags('Admin — hàng đợi & báo cáo')
+@ApiBearerAuth()
 @Controller('admin')
 @Roles(Role.ADMIN)
 export class JobsAdminController {

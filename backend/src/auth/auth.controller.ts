@@ -21,9 +21,11 @@ import {
 } from './dto/verification.dto';
 import { TokenService } from './token.service';
 import { VerificationService } from './verification.service';
+import { ApiTags } from '@nestjs/swagger';
 
 export const REFRESH_COOKIE = 'sf_refresh';
 
+@ApiTags('Auth — xác thực')
 @Controller('auth')
 @Public()
 export class AuthController {

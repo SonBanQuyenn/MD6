@@ -15,7 +15,10 @@ import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateTaxonomyDto, UpdateTaxonomyDto } from '../dto/taxonomy.dto';
 import { CategoriesService } from './categories.service';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Danh mục')
+@ApiBearerAuth()
 @Controller('categories')
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}

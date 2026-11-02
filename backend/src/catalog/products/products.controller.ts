@@ -19,7 +19,10 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { ListProductsQueryDto } from './dto/list-products-query.dto';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { ProductsService } from './products.service';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Sản phẩm')
+@ApiBearerAuth()
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}

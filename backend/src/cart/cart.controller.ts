@@ -16,8 +16,11 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/types/auth-user';
 import { CartService } from './cart.service';
 import { AddCartItemDto, UpdateCartItemDto } from './dto/cart.dto';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 /** Giỏ hàng của khách đang đăng nhập — mỗi khách chỉ thấy giỏ của chính mình. */
+@ApiTags('Giỏ hàng')
+@ApiBearerAuth()
 @Controller('cart')
 @Roles(Role.CUSTOMER)
 export class CartController {
